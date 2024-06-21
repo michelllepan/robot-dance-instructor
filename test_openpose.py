@@ -1,9 +1,8 @@
+import argparse
 import cv2
 import numpy as np
 import pyrealsense2 as rs
 
-# TODO: read threshold from command line
-THRESHOLD = 0.5
 BODY_PARTS = { "Nose": 0, "Neck": 1, "RShoulder": 2, "RElbow": 3, "RWrist": 4,
                "LShoulder": 5, "LElbow": 6, "LWrist": 7, "RHip": 8, "RKnee": 9,
                "RAnkle": 10, "LHip": 11, "LKnee": 12, "LAnkle": 13, "REye": 14,
@@ -30,7 +29,7 @@ def setup_pipeline():
     return pipeline
 
 
-def plot_keypoints(img):
+def plot_keypoints(img, threshold=0.5):
     h, w, _ = img.shape
     net.setInput(cv2.dnn.blobFromImage(img, 1.0, (w, h), (127.5, 127.5, 127.5), swapRB=True, crop=False))
 
@@ -47,7 +46,7 @@ def plot_keypoints(img):
         x = (w * point[0]) / out.shape[3]
         y = (h * point[1]) / out.shape[2]
 
-        points.append((int(x), int(y)) if conf > THRESHOLD else None)
+        points.append((int(x), int(y)) if conf > threshold else None)
 
     for pair in POSE_PAIRS:
         partFrom, partTo = pair[0], pair[1]
@@ -59,7 +58,7 @@ def plot_keypoints(img):
             cv2.ellipse(img, points[idTo], (3, 3), 0, 0, 360, (0, 0, 255), cv2.FILLED)
 
 
-def process_frames(frames):
+def process_frames(frames, threshold=0.5):
     depth_frame = frames.get_depth_frame()
     color_frame = frames.get_color_frame()
     if not depth_frame or not color_frame:
@@ -92,10 +91,14 @@ def process_frames(frames):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--threshold", "-t", type=float, default=0.5, help="detection confidence threshold")
+    args = parser.parse_args()
+
     pipeline = setup_pipeline()
     try:
         while True:
             frames = pipeline.wait_for_frames()
-            process_frames(frames)
+            process_frames(frames, args.threshold)
     finally:
         pipeline.stop()
