@@ -69,7 +69,7 @@ def process_frames(frames, threshold=0.5):
     color_image = np.asanyarray(color_frame.get_data())
 
     # Detect keypoints
-    plot_keypoints(color_image)
+    plot_keypoints(color_image, threshold)
 
     # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
     depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
