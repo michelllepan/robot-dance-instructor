@@ -68,8 +68,9 @@ def stream_landmarks(detection_result):
         right_thumb = landmark_to_vec(pose_landmarks[22])
         right_hand = np.mean((right_pinky, right_index, right_thumb), axis=0)
 
-        print(f"LEFT HAND: {left_hand}")
+        print(f"LEFT HAND:  {left_hand}")
         print(f"RIGHT HAND: {right_hand}")
+        print()
 
 
 def detect_keypoints(img):
