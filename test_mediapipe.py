@@ -51,7 +51,7 @@ def draw_landmarks_on_image(rgb_image, detection_result):
 
 def stream_landmarks(detection_result):
     pose_landmarks_list = detection_result.pose_landmarks
-    
+
     def landmark_to_vec(landmark):
         return np.array([landmark.x, landmark.y, landmark.z])
 
@@ -61,12 +61,12 @@ def stream_landmarks(detection_result):
         left_pinky = landmark_to_vec(pose_landmarks[17])
         left_index = landmark_to_vec(pose_landmarks[19])
         left_thumb = landmark_to_vec(pose_landmarks[21])
-        left_hand = (left_pinky + left_index + left_thumb) / 3
+        left_hand = np.mean((left_pinky, left_index, left_thumb), axis=0)
 
         right_pinky = landmark_to_vec(pose_landmarks[18])
         right_index = landmark_to_vec(pose_landmarks[20])
         right_thumb = landmark_to_vec(pose_landmarks[22])
-        right_hand = (right_pinky + right_index + right_thumb) / 3
+        right_hand = np.mean((right_pinky, right_index, right_thumb), axis=0)
 
         print(f"LEFT HAND: {left_hand}")
         print(f"RIGHT HAND: {right_hand}")
