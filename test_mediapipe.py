@@ -29,31 +29,53 @@ def setup_pipeline():
 
 
 def draw_landmarks_on_image(rgb_image, detection_result):
-  pose_landmarks_list = detection_result.pose_landmarks
-  annotated_image = np.copy(rgb_image)
+    pose_landmarks_list = detection_result.pose_landmarks
+    annotated_image = np.copy(rgb_image)
 
-  # Loop through the detected poses to visualize.
-  for idx in range(len(pose_landmarks_list)):
-    pose_landmarks = pose_landmarks_list[idx]
+    # Loop through the detected poses to visualize.
+    for idx in range(len(pose_landmarks_list)):
+        pose_landmarks = pose_landmarks_list[idx]
 
-    # Draw the pose landmarks.
-    pose_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
-    pose_landmarks_proto.landmark.extend([
-      landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in pose_landmarks
-    ])
-    solutions.drawing_utils.draw_landmarks(
-      annotated_image,
-      pose_landmarks_proto,
-      solutions.pose.POSE_CONNECTIONS,
-      solutions.drawing_styles.get_default_pose_landmarks_style())
-  return annotated_image
+        # Draw the pose landmarks.
+        pose_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
+        pose_landmarks_proto.landmark.extend([
+            landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in pose_landmarks
+        ])
+        solutions.drawing_utils.draw_landmarks(
+            annotated_image,
+            pose_landmarks_proto,
+            solutions.pose.POSE_CONNECTIONS,
+            solutions.drawing_styles.get_default_pose_landmarks_style())
+    return annotated_image
 
 
-def plot_keypoints(img):
+def stream_landmarks(detection_result):
+    pose_landmarks_list = detection_result.pose_landmarks
+    
+    def landmark_to_vec(landmark):
+        return np.array([landmark.x, landmark.y, landmark.z])
+
+    for idx in range(len(pose_landmarks_list)):
+        pose_landmarks = pose_landmarks_list[idx]
+
+        left_pinky = landmark_to_vec(pose_landmarks[17])
+        left_index = landmark_to_vec(pose_landmarks[19])
+        left_thumb = landmark_to_vec(pose_landmarks[21])
+        left_hand = (left_pinky + left_index + left_thumb) / 3
+
+        right_pinky = landmark_to_vec(pose_landmarks[18])
+        right_index = landmark_to_vec(pose_landmarks[20])
+        right_thumb = landmark_to_vec(pose_landmarks[22])
+        right_hand = (right_pinky + right_index + right_thumb) / 3
+
+        print(f"LEFT HAND: {left_hand}")
+        print(f"RIGHT HAND: {right_hand}")
+
+
+def detect_keypoints(img):
     image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
     detection_result = detector.detect(image)
-    annotated_image = draw_landmarks_on_image(image.numpy_view(), detection_result)
-    return cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR)
+    return detection_result
 
 
 def process_frames(frames):
@@ -67,7 +89,9 @@ def process_frames(frames):
     color_image = np.asanyarray(color_frame.get_data())
 
     # Detect keypoints
-    color_image = plot_keypoints(color_image)
+    detection_result= detect_keypoints(color_image)
+    color_image = draw_landmarks_on_image(color_image, detection_result)
+    stream_landmarks(detection_result)
 
     # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
     depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
