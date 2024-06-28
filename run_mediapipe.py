@@ -10,7 +10,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
 
-base_options = python.BaseOptions(model_asset_path='pose_landmarker.task')
+base_options = python.BaseOptions(model_asset_path='models/pose_landmarker.task')
 options = vision.PoseLandmarkerOptions(
     base_options=base_options,
     output_segmentation_masks=True)
