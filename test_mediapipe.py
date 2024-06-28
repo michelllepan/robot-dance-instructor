@@ -1,5 +1,6 @@
 import argparse
 import cv2
+import json
 import mediapipe as mp
 import numpy as np
 import pyrealsense2 as rs
@@ -49,29 +50,51 @@ def draw_landmarks_on_image(rgb_image, detection_result):
     return annotated_image
 
 
+def landmark_to_vec(landmark):
+    return np.array([landmark.x, landmark.y, landmark.z])
+
+
+def extract_body_parts(landmarks):
+    nose = landmark_to_vec(landmarks[0])
+
+    # LEFT
+    left_pinky = landmark_to_vec(landmarks[17])
+    left_index = landmark_to_vec(landmarks[19])
+    left_thumb = landmark_to_vec(landmarks[21])
+    left_hand = np.mean((left_pinky, left_index, left_thumb), axis=0)
+
+    left_elbow = landmark_to_vec(landmarks[13])
+    left_shoulder = landmark_to_vec(landmarks[11])
+
+    # RIGHT
+    right_pinky = landmark_to_vec(landmarks[18])
+    right_index = landmark_to_vec(landmarks[20])
+    right_thumb = landmark_to_vec(landmarks[22])
+    right_hand = np.mean((right_pinky, right_index, right_thumb), axis=0)
+
+    right_elbow = landmark_to_vec(landmarks[14])
+    right_shoulder = landmark_to_vec(landmarks[12])
+
+    return {
+        "nose": nose,
+        "left_hand": left_hand,
+        "left_elbow": left_elbow,
+        "left_shoulder": left_shoulder,
+        "right_hand": right_hand,
+        "right_elbow": right_elbow,
+        "right_shoulder": right_shoulder,
+    }
+
+
 def stream_landmarks(detection_result):
     pose_landmarks_list = detection_result.pose_landmarks
 
-    def landmark_to_vec(landmark):
-        return np.array([landmark.x, landmark.y, landmark.z])
-
     for idx in range(len(pose_landmarks_list)):
         pose_landmarks = pose_landmarks_list[idx]
-
-        left_pinky = landmark_to_vec(pose_landmarks[17])
-        left_index = landmark_to_vec(pose_landmarks[19])
-        left_thumb = landmark_to_vec(pose_landmarks[21])
-        left_hand = np.mean((left_pinky, left_index, left_thumb), axis=0)
-
-        right_pinky = landmark_to_vec(pose_landmarks[18])
-        right_index = landmark_to_vec(pose_landmarks[20])
-        right_thumb = landmark_to_vec(pose_landmarks[22])
-        right_hand = np.mean((right_pinky, right_index, right_thumb), axis=0)
-
-        print(f"LEFT HAND:  {left_hand}")
-        print(f"RIGHT HAND: {right_hand}")
+        body_parts = extract_body_parts(pose_landmarks)
+        for part, coords in body_parts.items():
+            print(f"{part}: {coords}")
         print()
-
 
 def detect_keypoints(img):
     image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
@@ -80,10 +103,14 @@ def detect_keypoints(img):
 
 
 def process_frames(frames):
+    frames = rs.align(rs.stream.color).process(frames)
     depth_frame = frames.get_depth_frame()
     color_frame = frames.get_color_frame()
     if not depth_frame or not color_frame:
         return
+    
+    # Fill holes in depth map
+    depth_frame = rs.hole_filling_filter(1).process(depth_frame)
 
     # Convert images to numpy arrays
     depth_image = np.asanyarray(depth_frame.get_data())
@@ -96,6 +123,7 @@ def process_frames(frames):
 
     # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
     depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
+    depth_colormap = draw_landmarks_on_image(depth_colormap, detection_result)
 
     depth_colormap_dim = depth_colormap.shape
     color_colormap_dim = color_image.shape
