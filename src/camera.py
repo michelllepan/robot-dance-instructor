@@ -1,7 +1,7 @@
 import pyrealsense2 as rs
 
 
-class RealsenseCamera:
+class RealSenseCamera:
 
     def __init__(self, width=1280, height=720):
         config = rs.config()
@@ -14,7 +14,7 @@ class RealsenseCamera:
         self.pipeline = rs.pipeline()
         self.pipeline.start(config)
 
-    def setup_postprocessing(self):
+    def _setup_postprocessing(self):
         self.align = rs.align(rs.stream.color)
 
         self.decimation_filter = rs.decimation_filter()
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     import numpy as np
     import cv2
 
-    camera = RealsenseCamera()
+    camera = RealSenseCamera()
     while True:
         depth_frame, color_frame = camera.get_frames()
 
@@ -81,4 +81,5 @@ if __name__ == "__main__":
             images = np.hstack((color_image, depth_colormap))
 
         cv2.imshow("RealSense", images)
-        cv2.waitKey(1)
+        if cv2.waitKey(1) & 0xFF == ord('q'): 
+            break
