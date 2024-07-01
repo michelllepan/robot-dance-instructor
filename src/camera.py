@@ -10,7 +10,7 @@ class RealSenseCamera:
 
         self.frame_history = []
 
-        self.setup_postprocessing()
+        self._setup_postprocessing()
         self.pipeline = rs.pipeline()
         self.pipeline.start(config)
 
