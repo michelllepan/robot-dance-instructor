@@ -2,14 +2,18 @@ import argparse
 
 import cv2
 import numpy as np
+import redis
 
 from src.camera import RealSenseCamera
 from src.detector import MediaPipeDetector
 
 
+REDIS_POS_KEY = "sai2::realsense::"
+
 def main(stream_outputs: bool = False):
     camera = RealSenseCamera()
     detector = MediaPipeDetector()
+    redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
 
     while True:
         depth_frame, color_frame = camera.get_frames()
@@ -55,7 +59,10 @@ def main(stream_outputs: bool = False):
                 landmark[0] = width * (landmark[0] - 0.5) * (depth / 640)
                 landmark[1] = height * (landmark[1] - 0.5) * (depth / 640)
                 landmark[2] = depth
+
+                redis_client.set(REDIS_POS_KEY + key, str(landmark))
                 print(f"{key: <15}   x: {landmark[0]: 3.2f}  y: {landmark[1]: 3.2f}  z: {landmark[2]: 3.2f}")
+                
         print()
 
         cv2.imshow("RealSense", images)
