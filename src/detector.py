@@ -63,6 +63,7 @@ class MediaPipeDetector:
 
         left_elbow = landmark_to_vec(pose_landmarks[13])
         left_shoulder = landmark_to_vec(pose_landmarks[11])
+        left_hip = landmark_to_vec(pose_landmarks[23])
 
         # RIGHT
         right_pinky = landmark_to_vec(pose_landmarks[18])
@@ -72,6 +73,10 @@ class MediaPipeDetector:
 
         right_elbow = landmark_to_vec(pose_landmarks[14])
         right_shoulder = landmark_to_vec(pose_landmarks[12])
+        right_hip = landmark_to_vec(pose_landmarks[24])
+
+        # CENTER
+        center_hips = np.mean((left_hip, right_hip), axis=0)
 
         return {
             "nose": nose,
@@ -81,6 +86,7 @@ class MediaPipeDetector:
             "right_hand": right_hand,
             "right_elbow": right_elbow,
             "right_shoulder": right_shoulder,
+            "center_hips": center_hips,
         }
     
 
