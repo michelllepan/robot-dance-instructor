@@ -13,18 +13,22 @@ REDIS_POS_KEY = "sai2::realsense::"
 STREAMING_POINTS = ["left_hand", "right_hand", "center_hips"]
 
 def main(
-    stream_outputs: bool,
-    write_to_file: bool,
+    stream_outputs: bool = False,
+    write_to_file: bool = False,
+    capture_length: int = -1,
 ):
     camera = RealSenseCamera()
     detector = MediaPipeDetector()
     redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
 
     if write_to_file:
+        filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         header = ["timestamp"] + [REDIS_POS_KEY + p for p in STREAMING_POINTS]
-        file_string = "\t".join(header)
+        out_string = "\t".join(header)
 
+    i = 0
     while True:
+        print(f"\nt={i}")
         depth_frame, color_frame = camera.get_frames()
 
         depth_image = np.asanyarray(depth_frame.get_data())
@@ -58,7 +62,7 @@ def main(
                 return 1e-3 * depth_image[x, y]
 
         if write_to_file:
-            file_string += "\n" + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            out_string += "\n" + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 
         for key in landmark_dict:
             landmark = landmark_dict[key]
@@ -68,7 +72,7 @@ def main(
                 landmark_dict[key] = None
                 print(f"{key: <15}   null")
             else:
-                # focal length of RealSense d435i: 640px
+                # focal length of RealSense d455
                 landmark[0] = width * (landmark[0] - 0.5) * (depth / 640)
                 landmark[1] = height * (landmark[1] - 0.5) * (depth / 640)
                 landmark[2] = depth
@@ -76,24 +80,30 @@ def main(
                 if stream_outputs and key in STREAMING_POINTS:
                     redis_client.set(REDIS_POS_KEY + key, str(landmark))
                 if write_to_file and key in STREAMING_POINTS:
-                    file_string += "\t[" + ", ".join(map(str, landmark)) + "]"
+                    out_string += "\t[" + ", ".join(map(str, landmark)) + "]"
 
                 print(f"{key: <15}   x: {landmark[0]: 3.2f}  y: {landmark[1]: 3.2f}  z: {landmark[2]: 3.2f}")
                 
-        print()
+        i += 1
+        if capture_length > 0 and i > capture_length:
+            break
 
         cv2.imshow("RealSense", images)
         if cv2.waitKey(1) & 0xFF == ord('q'): 
             break
 
     if write_to_file:
-        with open(datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".txt", "w") as file:
-            file.write(file_string)
+        with open(filename + ".txt", "w") as file:
+            file.write(out_string)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--stream_outputs", "-s", action="store_true")
     parser.add_argument("--write_to_file", "-w", action="store_true")
+    parser.add_argument("--capture_length", "-c", type=int, default=-1)
     args = parser.parse_args()
-    main(stream_outputs=args.stream_outputs, write_to_file=args.write_to_file)
+    main(
+        stream_outputs=args.stream_outputs,
+        write_to_file=args.write_to_file,
+        capture_length=args.capture_length)
