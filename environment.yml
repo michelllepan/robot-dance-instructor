@@ -1,0 +1,16 @@
+name: realsense
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10.14
+  - pip=23.3.2
+  - pip:
+      - jax==0.4.30
+      - matplotlib==3.9.0
+      - mediapipe==0.10.14
+      - numpy==2.0.0
+      - opencv-python==4.9.0.80
+      - pillow==10.3.0
+      - pyrealsense2==2.55.1.6486
+      - redis==5.0.7
+      - scipy==1.13.1
