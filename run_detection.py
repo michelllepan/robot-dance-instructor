@@ -1,4 +1,5 @@
 import argparse
+import os
 from datetime import datetime
 from typing import Sequence
 
@@ -33,7 +34,8 @@ class PoseTracker:
         self.smoothing_factor = smoothing_factor
 
         if self.write_to_file:
-            self.filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            os.mkdir("logs", exist_ok=True)
+            self.filename = os.path.join("logs", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
             header = ["timestamp"] + [REDIS_POS_KEY + p for p in STREAMING_POINTS]
             self.out_string = "\t".join(header)
 
