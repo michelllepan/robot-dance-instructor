@@ -1,5 +1,6 @@
 import argparse
 from datetime import datetime
+from typing import Sequence
 
 import cv2
 import numpy as np
@@ -12,24 +13,35 @@ from src.detector import MediaPipeDetector
 REDIS_POS_KEY = "sai2::realsense::"
 STREAMING_POINTS = ["left_hand", "right_hand", "center_hips"]
 
-def main(
-    stream_outputs: bool = False,
-    write_to_file: bool = False,
-    capture_length: int = -1,
-):
-    camera = RealSenseCamera()
-    detector = MediaPipeDetector()
-    redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
 
-    if write_to_file:
-        filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        header = ["timestamp"] + [REDIS_POS_KEY + p for p in STREAMING_POINTS]
-        out_string = "\t".join(header)
+class PoseTracker:
 
-    i = 0
-    while True:
-        print(f"\nt={i}")
-        depth_frame, color_frame = camera.get_frames()
+    def __init__(
+        self,
+        stream_outputs: bool = False,
+        write_to_file: bool = False,
+        capture_length: int = -1,
+        smoothing_factor: int = 1,
+    ):
+        self.camera = RealSenseCamera()
+        self.detector = MediaPipeDetector()
+        self.redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+
+        self.stream_outputs = stream_outputs
+        self.write_to_file = write_to_file
+        self.capture_length = capture_length
+        self.smoothing_factor = smoothing_factor
+
+        if self.write_to_file:
+            self.filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            header = ["timestamp"] + [REDIS_POS_KEY + p for p in STREAMING_POINTS]
+            self.out_string = "\t".join(header)
+
+        self.timesteps = 0
+
+    def process_frame(self) -> bool:
+        print(f"\nt={self.timesteps}")
+        depth_frame, color_frame = self.camera.get_frames()
 
         depth_image = np.asanyarray(depth_frame.get_data())
         color_image = np.asanyarray(color_frame.get_data())
@@ -47,12 +59,12 @@ def main(
                 dsize=(depth_colormap_dim[1], depth_colormap_dim[0]),
                 interpolation=cv2.INTER_AREA)
 
-        detection_result = detector.run_detection(color_image)
-        color_image = detector.draw_landmarks_on_image(color_image, detection_result)
-        depth_colormap = detector.draw_landmarks_on_image(depth_colormap, detection_result)
+        detection_result = self.detector.run_detection(color_image)
+        color_image = self.detector.draw_landmarks_on_image(color_image, detection_result)
+        depth_colormap = self.detector.draw_landmarks_on_image(depth_colormap, detection_result)
         images = np.hstack((color_image, depth_colormap))
 
-        landmark_dict = detector.parse_landmarks(detection_result)
+        landmark_dict = self.detector.parse_landmarks(detection_result)
 
         def get_depth_at_pixel(x, y):
             x, y = int(x * width), int(y * height)
@@ -61,8 +73,8 @@ def main(
             else:
                 return 1e-3 * depth_image[x, y]
 
-        if write_to_file:
-            out_string += "\n" + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        if self.write_to_file:
+            self.out_string += "\n" + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 
         for key in landmark_dict:
             landmark = landmark_dict[key]
@@ -77,24 +89,26 @@ def main(
                 landmark[1] = height * (landmark[1] - 0.5) * (depth / 640)
                 landmark[2] = depth
 
-                if stream_outputs and key in STREAMING_POINTS:
-                    redis_client.set(REDIS_POS_KEY + key, str(landmark))
-                if write_to_file and key in STREAMING_POINTS:
-                    out_string += "\t[" + ", ".join(map(str, landmark)) + "]"
+                if self.stream_outputs and key in STREAMING_POINTS:
+                    self.redis_client.set(REDIS_POS_KEY + key, str(landmark))
+                if self.write_to_file and key in STREAMING_POINTS:
+                    self.out_string += "\t[" + ", ".join(map(str, landmark)) + "]"
 
                 print(f"{key: <15}   x: {landmark[0]: 3.2f}  y: {landmark[1]: 3.2f}  z: {landmark[2]: 3.2f}")
                 
-        i += 1
-        if capture_length > 0 and i > capture_length:
-            break
+        self.timesteps += 1
+        if self.capture_length > 0 and self.timesteps > self.capture_length:
+            return False
 
         cv2.imshow("RealSense", images)
-        if cv2.waitKey(1) & 0xFF == ord('q'): 
-            break
+        return True
 
-    if write_to_file:
-        with open(filename + ".txt", "w") as file:
-            file.write(out_string)
+    def close(self):
+        print("\nclosing")
+        if self.write_to_file:
+            print(f"writing to file {self.filename}.txt")
+            with open(self.filename + ".txt", "w") as file:
+                file.write(self.out_string)
 
 
 if __name__ == "__main__":
@@ -103,7 +117,18 @@ if __name__ == "__main__":
     parser.add_argument("--write_to_file", "-w", action="store_true")
     parser.add_argument("--capture_length", "-c", type=int, default=-1)
     args = parser.parse_args()
-    main(
+
+    tracker = PoseTracker(
         stream_outputs=args.stream_outputs,
         write_to_file=args.write_to_file,
-        capture_length=args.capture_length)
+        capture_length=args.capture_length,
+    )
+
+    try:
+        while True:
+            if not tracker.process_frame():
+                break
+            elif cv2.waitKey(1) & 0xFF == ord('q'): 
+                break
+    finally:
+        tracker.close()
