@@ -125,8 +125,10 @@ class PoseTracker:
             if depth is None:
                 smoothed = self.smooth_values(key, [np.nan] * 3)
             else:
-                landmark[0] = width * (landmark[0] - 0.5) * (depth / 640)
-                landmark[1] = height * (landmark[1] - 0.5) * (depth / 640)
+                # landmark[0] = width * (landmark[0] - 0.5) * (depth / 640)
+                # landmark[1] = height * (landmark[1] - 0.5) * (depth / 640)
+                landmark[0] = width * (landmark[0] - 0.5)  * 2 / 640
+                landmark[1] = height * (landmark[1] - 0.5) * 2 / 640
                 landmark[2] = depth
                 smoothed = self.smooth_values(key, landmark)
 
