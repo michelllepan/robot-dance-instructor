@@ -7,6 +7,7 @@ from typing import Sequence
 import cv2
 import numpy as np
 import redis
+import scipy
 
 from src.camera import RealSenseCamera
 from src.detector import MediaPipeDetector
@@ -65,8 +66,6 @@ class PoseTracker:
                 weights[i] = 0
         if sum(weights) == 0:
             return None
-        
-        # normalize weights to sum to 1
         weights = weights / sum(weights)
 
         # calculate smoothed values
@@ -79,6 +78,12 @@ class PoseTracker:
 
         depth_image = np.asanyarray(depth_frame.get_data())
         color_image = np.asanyarray(color_frame.get_data())
+
+        depth_image = scipy.signal.convolve2d(
+            in1=depth_image,
+            in2=np.ones((3, 3)) / 9,
+            mode="same",
+        )
 
         depth_colormap = cv2.applyColorMap(
             cv2.convertScaleAbs(depth_image, alpha=0.03),cv2.COLORMAP_JET)
