@@ -1,5 +1,6 @@
 import argparse
 import os
+import time
 from datetime import datetime
 from typing import Sequence
 
@@ -13,7 +14,7 @@ from src.detector import MediaPipeDetector
 
 REDIS_POS_KEY = "sai2::realsense::"
 STREAMING_POINTS = ["left_hand", "right_hand", "center_hips"]
-
+EMA_BETA = 0.9
 
 class PoseTracker:
 
@@ -22,7 +23,7 @@ class PoseTracker:
         stream_outputs: bool = False,
         write_to_file: bool = False,
         capture_length: int = -1,
-        smoothing_factor: int = 1,
+        history_length: int = 1,
     ):
         self.camera = RealSenseCamera()
         self.detector = MediaPipeDetector()
@@ -31,18 +32,49 @@ class PoseTracker:
         self.stream_outputs = stream_outputs
         self.write_to_file = write_to_file
         self.capture_length = capture_length
-        self.smoothing_factor = smoothing_factor
+        self.history_length = history_length
 
         if self.write_to_file:
-            os.mkdir("logs", exist_ok=True)
+            os.makedirs("logs", exist_ok=True)
             self.filename = os.path.join("logs", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
             header = ["timestamp"] + [REDIS_POS_KEY + p for p in STREAMING_POINTS]
             self.out_string = "\t".join(header)
 
+        self.start_time = time.time()
         self.timesteps = 0
 
+        # initialize history
+        self.history = {}
+        for key in STREAMING_POINTS:
+            self.history[key] = np.empty((history_length, 3))
+            self.history[key][:] = np.nan
+
+    def smooth_values(self, key, new_value):
+        # update history
+        self.history[key] = np.concatenate((
+            self.history[key][1:],
+            np.array(new_value).reshape((1, 3))
+        ))
+
+        # create weights
+        weights = (1 - EMA_BETA) * np.power(EMA_BETA, np.arange(self.history_length))
+
+        # redistribute weights if values are nan
+        for i in range(self.history_length):
+            if np.isnan(self.history[key][i]).any():
+                weights[i] = 0
+        if sum(weights) == 0:
+            return None
+        
+        # normalize weights to sum to 1
+        weights = weights / sum(weights)
+
+        # calculate smoothed values
+        smoothed_values = np.dot(weights.T, np.nan_to_num(self.history[key]))
+        return smoothed_values
+
     def process_frame(self) -> bool:
-        print(f"\nt={self.timesteps}")
+        print(f"\nt = {self.timesteps}")
         depth_frame, color_frame = self.camera.get_frames()
 
         depth_image = np.asanyarray(depth_frame.get_data())
@@ -71,7 +103,7 @@ class PoseTracker:
         def get_depth_at_pixel(x, y):
             x, y = int(x * width), int(y * height)
             if x < 0 or x >= width or y < 0 or y >= height:
-                return -1
+                return None
             else:
                 return 1e-3 * depth_image[x, y]
 
@@ -79,24 +111,30 @@ class PoseTracker:
             self.out_string += "\n" + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 
         for key in landmark_dict:
+            if key not in STREAMING_POINTS:
+                continue
+
             landmark = landmark_dict[key]
             depth = get_depth_at_pixel(landmark[0], landmark[1])
-            
-            if depth == -1:
-                landmark_dict[key] = None
-                print(f"{key: <15}   null")
+
+            if depth is None:
+                smoothed = self.smooth_values(key, [np.nan] * 3)
             else:
-                # focal length of RealSense d455
                 landmark[0] = width * (landmark[0] - 0.5) * (depth / 640)
                 landmark[1] = height * (landmark[1] - 0.5) * (depth / 640)
                 landmark[2] = depth
+                smoothed = self.smooth_values(key, landmark)
 
-                if self.stream_outputs and key in STREAMING_POINTS:
-                    self.redis_client.set(REDIS_POS_KEY + key, str(landmark))
-                if self.write_to_file and key in STREAMING_POINTS:
-                    self.out_string += "\t[" + ", ".join(map(str, landmark)) + "]"
+            if smoothed is None:
+                print(f"{key: <15}   null")
+                continue
 
-                print(f"{key: <15}   x: {landmark[0]: 3.2f}  y: {landmark[1]: 3.2f}  z: {landmark[2]: 3.2f}")
+            if self.stream_outputs:
+                self.redis_client.set(REDIS_POS_KEY + key, str(smoothed))
+            if self.write_to_file:
+                self.out_string += "\t[" + ", ".join(map(str, smoothed)) + "]"
+
+            print(f"{key: <15}   x: {smoothed[0]: 3.2f}  y: {smoothed[1]: 3.2f}  z: {smoothed[2]: 3.2f}")
                 
         self.timesteps += 1
         if self.capture_length > 0 and self.timesteps > self.capture_length:
@@ -112,18 +150,22 @@ class PoseTracker:
             with open(self.filename + ".txt", "w") as file:
                 file.write(self.out_string)
 
+        print(f"average fps: {self.timesteps / (time.time() - self.start_time)}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--stream_outputs", "-s", action="store_true")
     parser.add_argument("--write_to_file", "-w", action="store_true")
     parser.add_argument("--capture_length", "-c", type=int, default=-1)
+    parser.add_argument("--history_length", "-l", type=int, default=5)
     args = parser.parse_args()
 
     tracker = PoseTracker(
         stream_outputs=args.stream_outputs,
         write_to_file=args.write_to_file,
         capture_length=args.capture_length,
+        history_length=args.history_length,
     )
 
     try:
