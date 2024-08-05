@@ -22,33 +22,48 @@ class PoseTracker:
     def __init__(
         self,
         stream_outputs: bool = False,
-        write_to_file: bool = False,
         capture_length: int = -1,
-        history_length: int = 1,
+        history_length: int = 5,
     ):
         self.camera = RealSenseCamera()
         self.detector = MediaPipeDetector()
         self.redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
 
         self.stream_outputs = stream_outputs
-        self.write_to_file = write_to_file
         self.capture_length = capture_length
         self.history_length = history_length
-
-        if self.write_to_file:
-            os.makedirs("logs", exist_ok=True)
-            self.filename = os.path.join("logs", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-            header = ["timestamp"] + [REDIS_POS_KEY + p for p in STREAMING_POINTS]
-            self.out_string = "\t".join(header)
-
-        self.start_time = time.time()
-        self.timesteps = 0
-
+        
+        self.recording = False
+        
         # initialize history
         self.history = {}
         for key in STREAMING_POINTS:
             self.history[key] = np.empty((history_length, 3))
             self.history[key][:] = np.nan
+
+    def start_recording(self):
+        os.makedirs("logs", exist_ok=True)
+        self.filename = os.path.join("logs", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+
+        header = ["timestamp"] + [REDIS_POS_KEY + p for p in STREAMING_POINTS]
+        self.out_string = "\t".join(header)
+
+        self.start_time = time.time()
+        self.timesteps = 0
+        self.recording = True
+
+    def stop_recording(self):
+        if not self.recording:
+            print("no current recording in progress!")
+            return
+
+        print("\nclosing")
+        print(f"writing to file {self.filename}.txt")
+        with open(self.filename + ".txt", "w") as file:
+            file.write(self.out_string)
+        self.recording = False
+
+        print(f"average fps: {self.timesteps / (time.time() - self.start_time)}")
 
     def smooth_values(self, key, new_value):
         # update history
@@ -112,7 +127,7 @@ class PoseTracker:
             else:
                 return 1e-3 * depth_image[x, y]
 
-        if self.write_to_file:
+        if self.recording:
             self.out_string += "\n" + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 
         for key in landmark_dict:
@@ -138,7 +153,7 @@ class PoseTracker:
 
             if self.stream_outputs:
                 self.redis_client.set(REDIS_POS_KEY + key, str(smoothed))
-            if self.write_to_file:
+            if self.recording:
                 self.out_string += "\t[" + ", ".join(map(str, smoothed)) + "]"
 
             print(f"{key: <15}   x: {smoothed[0]: 3.2f}  y: {smoothed[1]: 3.2f}  z: {smoothed[2]: 3.2f}")
@@ -150,31 +165,19 @@ class PoseTracker:
         cv2.imshow("RealSense", images)
         return True
 
-    def close(self):
-        print("\nclosing")
-        if self.write_to_file:
-            print(f"writing to file {self.filename}.txt")
-            with open(self.filename + ".txt", "w") as file:
-                file.write(self.out_string)
-
-        print(f"average fps: {self.timesteps / (time.time() - self.start_time)}")
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--stream_outputs", "-s", action="store_true")
-    parser.add_argument("--write_to_file", "-w", action="store_true")
     parser.add_argument("--capture_length", "-c", type=int, default=-1)
-    parser.add_argument("--history_length", "-l", type=int, default=5)
     args = parser.parse_args()
 
     tracker = PoseTracker(
         stream_outputs=args.stream_outputs,
-        write_to_file=args.write_to_file,
         capture_length=args.capture_length,
-        history_length=args.history_length,
     )
 
+    tracker.start_recording()
     try:
         while True:
             if not tracker.process_frame():
@@ -182,4 +185,4 @@ if __name__ == "__main__":
             elif cv2.waitKey(1) & 0xFF == ord('q'): 
                 break
     finally:
-        tracker.close()
+        tracker.stop_recording()
