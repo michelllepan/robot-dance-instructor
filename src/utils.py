@@ -2,10 +2,12 @@ from datetime import datetime
 from typing import Dict
 
 import numpy as np
+from scipy import interpolate
 
 
 def read_log(filename: str) -> Dict[str, np.ndarray]:
     with open(filename, "r") as f:
+        print("reading log from " + filename)
         lines = f.readlines()
 
         headers = lines[0].strip("\n").split("\t")
@@ -22,6 +24,10 @@ def read_log(filename: str) -> Dict[str, np.ndarray]:
                     # handle coordinates
                     log[headers[i]].append(np.array(eval(val)))
 
+        for key in log:
+            if key == "timestamp":
+                continue
+            log[key] = np.vstack(log[key])
         return log
 
 
@@ -39,3 +45,11 @@ def write_log(filename: str, log: Dict[str, np.ndarray]):
 
     with open(filename, "w") as f:
         f.write(out_string)
+        print("writing log to " + filename)
+
+
+def interpolate_trajectory(trajectory: np.ndarray, num_points: int):
+    x, y, z = trajectory[:, 0], trajectory[:, 1], trajectory[:, 2]
+    tck, u = interpolate.splprep([x, y, z], s=0.0)
+    x_i, y_i, z_i = interpolate.splev(np.linspace(0, 1, num_points),tck)
+    return np.vstack([x_i, y_i, z_i]).T
