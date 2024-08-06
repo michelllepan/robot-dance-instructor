@@ -6,7 +6,7 @@ import numpy as np
 from src.utils import read_log, write_log, interpolate_trajectory
 
 
-def main(filename: str, frequency: int = 120):
+def main(filename: str, smoothness: float = 0.2, frequency: int = 120):
     log = read_log(filename)
     interpolated_log = {}
 
@@ -19,7 +19,10 @@ def main(filename: str, frequency: int = 120):
     for key in log:
         if key == "timestamp":
             continue
-        interpolated_log[key] = interpolate_trajectory(log[key], num_points)
+        interpolated_log[key] = interpolate_trajectory(
+            trajectory=log[key],
+            num_points=num_points,
+            smoothness=smoothness)
 
     interpolated_filename = filename.strip(".txt") + "_interpolated.txt"
     write_log(interpolated_filename, interpolated_log)
@@ -28,6 +31,7 @@ def main(filename: str, frequency: int = 120):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("filename", type=str)
+    parser.add_argument("--smoothness", "-s", type=float, default=0.2)
     args = parser.parse_args()
 
-    main(filename=args.filename)
+    main(filename=args.filename, smoothness=args.smoothness)

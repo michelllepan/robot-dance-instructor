@@ -48,8 +48,12 @@ def write_log(filename: str, log: Dict[str, np.ndarray]):
         print("writing log to " + filename)
 
 
-def interpolate_trajectory(trajectory: np.ndarray, num_points: int):
+def interpolate_trajectory(
+    trajectory: np.ndarray,
+    num_points: int,
+    smoothness: float = 0.2,
+) -> np.ndarray:
     x, y, z = trajectory[:, 0], trajectory[:, 1], trajectory[:, 2]
-    tck, u = interpolate.splprep([x, y, z], s=0.0)
-    x_i, y_i, z_i = interpolate.splev(np.linspace(0, 1, num_points),tck)
+    tck, u = interpolate.splprep([x, y, z], s=smoothness)
+    x_i, y_i, z_i = interpolate.splev(np.linspace(0, 1, num_points), tck)
     return np.vstack([x_i, y_i, z_i]).T
