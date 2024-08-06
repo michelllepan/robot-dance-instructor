@@ -17,22 +17,10 @@ RIGID_BODY_POSITION_KEYS = [
     "sai2::realsense::center_hips"
 ]
 
+prev = {key: [] for key in RIGID_BODY_POSITION_KEYS}
 history = {key: [] for key in RIGID_BODY_POSITION_KEYS}
 
-def cleanup_old_entries(history, current_time):
-    """
-    Remove entries older than 30 seconds from the history.
-    """
-    cutoff_time = current_time - timedelta(seconds=30)
-    for key in list(history.keys()):
-        history[key] = [entry for entry in history[key] if entry['timestamp'] >= cutoff_time]
-        if not history[key]:
-            del history[key]
-
 def initialize_output_file():
-    """
-    Initialize the output file with a header row containing the keys.
-    """
     with open(HISTORY_FILE, 'w') as file:
         header = ['timestamp'] + RIGID_BODY_POSITION_KEYS
         file.write('\t'.join(header) + '\n')
@@ -56,23 +44,27 @@ def read_and_append_keys():
     key_index = 0
     while True:
         current_time = datetime.now()
-        key = RIGID_BODY_POSITION_KEYS[key_index]
+        for key_index in range(len(RIGID_BODY_POSITION_KEYS)):
+            key = RIGID_BODY_POSITION_KEYS[key_index]
 
-        try:
-            value = redis_client.get(key)
-            if value is not None:
-                if key not in history:
-                    history[key] = []
-                history[key].append({'timestamp': current_time, 'value': value})
-        except redis.ConnectionError as e:
-            print(f"Redis connection error: {e}")
-            return
+            try:
+                value = redis_client.get(key)
+                if value is not None:
+                    if key not in history:
+                        history[key] = []
+                    history[key] = [{'timestamp': current_time, 'value': value}]
+            except redis.ConnectionError as e:
+                print(f"Redis connection error: {e}")
+                return
+            
+        if prev[RIGID_BODY_POSITION_KEYS[0]] and prev[RIGID_BODY_POSITION_KEYS[0]][0]["value"] != history[RIGID_BODY_POSITION_KEYS[0]][0]["value"]:
+            append_to_output_file(history)
+            # print("PREV: ", prev)
+            # print("HISTORY: ", history)
 
-        cleanup_old_entries(history, current_time)
-        append_to_output_file(history)
-
-        key_index = (key_index + 1) % len(RIGID_BODY_POSITION_KEYS)
-        time.sleep(1.0 / 30)  # Maintain a rate of 30 Hz per key
+        for key in prev: 
+            prev[key] = history[key].copy()
+        time.sleep(1.0 / 20)  # Maintain a rate of 30 Hz per key
 
 def test():
     print("History saving function is running.")

@@ -27,61 +27,10 @@ PANDA_RIGHT_HAND_POS = "mmp_panda::right_hand"
 PANDA_LEFT_HAND_POS = "mmp_panda::realsense::left_hand"
 PANDA_CENTER_HIPS_POS = "mmp_panda::realsense::center_hips"
 
-history = {key: [] for key in RIGID_BODY_POSITION_KEYS}
-
-def cleanup_old_entries(history, current_time):
-    """
-    Remove entries older than 30 seconds from the history.
-    """
-    cutoff_time = current_time - timedelta(seconds=30)
-    for key in list(history.keys()):
-        history[key] = [entry for entry in history[key] if entry['timestamp'] >= cutoff_time]
-        if not history[key]:
-            del history[key]
-
-def initialize_output_file():
-    """
-    Initialize the output file with a header row containing the keys.
-    """
-    with open(HISTORY_FILE, 'w') as file:
-        header = ['timestamp'] + RIGID_BODY_POSITION_KEYS
-        file.write('\t'.join(header) + '\n')
-
-def append_to_output_file(history):
-    """
-    Append rows of data from the history to the output file.
-    Each row includes a timestamp followed by the values for each key.
-    """
-    with open(HISTORY_FILE, 'a') as file:
-        for timestamp in sorted(set(entry['timestamp'] for key in history for entry in history[key])):
-            row = [timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')] + [next((entry['value'] for entry in history[key] if entry['timestamp'] == timestamp), 'None') for key in RIGID_BODY_POSITION_KEYS]
-            file.write('\t'.join(row) + '\n')
-
-def read_and_append_keys():
-    """
-    Continuously read from the specified Redis keys and append their values to the output file.
-    """
-    initialize_output_file()
-    while True:
-        current_time = datetime.now()
-        data = {}
-        for key in RIGID_BODY_POSITION_KEYS:
-            try:
-                value = redis_client.get(key)
-                if value is not None:
-                    if key not in history:
-                        history[key] = []
-                    history[key].append({'timestamp': current_time, 'value': value})
-            except redis.ConnectionError as e:
-                print(f"Redis connection error: {e}")
-                return
-
-        cleanup_old_entries(history, current_time)
-        append_to_output_file(history)
-        time.sleep(1.0 / 120)  # Maintain a rate of 120 Hz
-
-async def get_move_data():
-    move_data = await redis_client.lrange(DEFINE_MOVE_KEY, 0, -1)
+def get_move_data():
+    move_data = redis_client.get(DEFINE_MOVE_KEY)
+    move_data = move_data[1:-1].strip("'").split(",")
+    print(move_data)
     moves = []
     for move in move_data:
         parts = move.split(':')
@@ -112,40 +61,39 @@ def save_move_coordinates(move_id, coordinates):
         writer.writeheader()
         writer.writerows(coordinates)
 
-async def process_moves():
-    moves = await get_move_data()
+def process_moves():
+    moves = get_move_data()
     for move in moves:
         start_time = datetime.fromtimestamp(move['start_time'])
         stop_time = datetime.fromtimestamp(move['stop_time'])
         coordinates = extract_coordinates_for_move(start_time, stop_time)
         if coordinates:
-            save_move_coordinates(move['move_id'], coordinates)
-            interpolate
-            await redis_client.rpush(MOVE_LIST_KEY, move['move_id'])
+            save_move_coordinates(move['move_id'], coordinates) # save move txt
+            #redis_client.rpush(MOVE_LIST_KEY, move['move_id'])
             # Remove the processed move from the Redis list
-            await redis_client.lrem(DEFINE_MOVE_KEY, 0, f"{move['move_id']}:{move['start_time']}:{move['stop_time']}")
+            redis_client.lrem(DEFINE_MOVE_KEY, 0, f"{move['move_id']}:{move['start_time']}:{move['stop_time']}")
             
             move_id = move['move_id']
             output_file = f"recordings/{move_id}.txt"
             interpolate(output_file, 0.2)
 
-async def replay_moves():
+def replay_moves():
     while True:
-        execute_flag = await redis_client.get(EXECUTE_FLAG_KEY)
+        execute_flag = redis_client.get(EXECUTE_FLAG_KEY)
         if execute_flag == "1":
-            move_id = await redis_client.lpop(MOVE_LIST_KEY)
+            move_id = redis_client.lpop(MOVE_LIST_KEY)
             if move_id:
-                await execute_move(move_id)
-                await redis_client.rpush(MOVE_EXECUTED_KEY, move_id)
+                execute_move(move_id)
+                redis_client.rpush(MOVE_EXECUTED_KEY, move_id)
             else:
-                await redis_client.set(EXECUTE_FLAG_KEY, "0")
-        await asyncio.sleep(0.1)
+                redis_client.set(EXECUTE_FLAG_KEY, "0")
+        asyncio.sleep(0.1)
 
-async def execute_move(move_id):
+def execute_move(move_id):
     file_path = f"/Users/rheamalhotra/Desktop/robotics/react-genie-robotics/optitrack/recordings/{move_id}.txt"
     data = read_data(file_path)
     if data:
-        await publish_to_redis(data, rate_hz=30)
+        publish_to_redis(data, rate_hz=30)
 
 def read_data(file_path):
     """
@@ -164,7 +112,7 @@ def read_data(file_path):
         print(f"An error occurred while reading the file: {e}")
     return data
 
-async def publish_to_redis(data, rate_hz):
+def publish_to_redis(data, rate_hz):
     """
     Publish each row of data to Redis, for panda to execute.
     """
@@ -173,8 +121,8 @@ async def publish_to_redis(data, rate_hz):
         timestamp = row.pop('timestamp', None)
         for key, value in row.items():
             new_key = "mmp_panda::" + key.split("::")[2]
-            await redis_client.set(new_key, value)
-        await asyncio.sleep(interval)
+            redis_client.set(new_key, value)
+        asyncio.sleep(interval)
 
 def test():
     move_id = input("enter move name: ")
@@ -185,15 +133,14 @@ def test():
 
     move = str(move_id) + ':' + str(start) + ':' + str(stop)
 
-    redis_client.set(DEFINE_MOVE_KEY, move)
-    redis_client.set(MOVE_LIST_KEY, move_id)
+    redis_client.set(DEFINE_MOVE_KEY, [move])
+    redis_client.set(MOVE_LIST_KEY, [move_id])
     redis_client.set(EXECUTE_FLAG_KEY, "1")
 
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(test())
-    loop.create_task(read_and_append_keys())
+    # loop.run_until_complete(test())
     loop.create_task(process_moves())
     loop.create_task(replay_moves())
     loop.run_forever()
