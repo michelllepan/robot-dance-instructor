@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import asyncio
 from run_interpolation import interpolate
 
-HISTORY_FILE = '/Users/rheamalhotra/Desktop/robotics/react-genie-robotics/optitrack/recordings/history.txt'  # Output file for the data
+HISTORY_FILE = 'recordings/history.txt'  # Output file for the data
 
 # Redis configuration
 REDIS_HOST = '127.0.0.1'
@@ -176,8 +176,23 @@ async def publish_to_redis(data, rate_hz):
             await redis_client.set(new_key, value)
         await asyncio.sleep(interval)
 
+def test():
+    move_id = input("enter move name: ")
+    input("press enter to start recording")
+    start = time.time()
+    input("press enter to stop recording")
+    stop = time.time()
+
+    move = str(move_id) + ':' + str(start) + ':' + str(stop)
+
+    redis_client.set(DEFINE_MOVE_KEY, move)
+    redis_client.set(MOVE_LIST_KEY, move_id)
+    redis_client.set(EXECUTE_FLAG_KEY, "1")
+
+
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
+    loop.run_until_complete(test())
     loop.create_task(read_and_append_keys())
     loop.create_task(process_moves())
     loop.create_task(replay_moves())
