@@ -152,7 +152,7 @@ class PoseTracker:
                 continue
 
             if self.stream_outputs:
-                self.redis_client.set(REDIS_POS_KEY + key, str(smoothed))
+                self.redis_client.set(REDIS_POS_KEY + key, "[" + ", ".join(map(str, smoothed)) + "]")
             if self.recording:
                 self.out_string += "\t[" + ", ".join(map(str, smoothed)) + "]"
 

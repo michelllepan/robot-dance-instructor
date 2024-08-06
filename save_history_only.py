@@ -57,10 +57,9 @@ def read_and_append_keys():
                 print(f"Redis connection error: {e}")
                 return
             
-        if prev[RIGID_BODY_POSITION_KEYS[0]] and prev[RIGID_BODY_POSITION_KEYS[0]][0]["value"] != history[RIGID_BODY_POSITION_KEYS[0]][0]["value"]:
+        key_changed = [not prev[key] or prev[key][0]["value"] != history[key][0]["value"] for key in RIGID_BODY_POSITION_KEYS]
+        if any(key_changed):
             append_to_output_file(history)
-            # print("PREV: ", prev)
-            # print("HISTORY: ", history)
 
         for key in prev: 
             prev[key] = history[key].copy()

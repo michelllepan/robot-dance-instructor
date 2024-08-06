@@ -27,22 +27,18 @@ PANDA_RIGHT_HAND_POS = "mmp_panda::right_hand"
 PANDA_LEFT_HAND_POS = "mmp_panda::realsense::left_hand"
 PANDA_CENTER_HIPS_POS = "mmp_panda::realsense::center_hips"
 
-def get_move_data():
+def get_move_data(): #define single move
     move_data = redis_client.get(DEFINE_MOVE_KEY)
-    #move_data = move_data[1:-1].strip("'").split(",")
-    print(move_data)
-    moves = []
-    #for move in move_data:
+    
     parts = move_data.split(':')
     move_id = parts[0]
     start_time = float(parts[1])
     stop_time = float(parts[2])
-    moves.append({
+    return {
         'move_id': move_id,
         'start_time': start_time,
         'stop_time': stop_time
-    })
-    return moves
+    }
 
 def extract_coordinates_for_move(start_time, stop_time):
     coordinates = []
@@ -62,20 +58,22 @@ def save_move_coordinates(move_id, coordinates):
         writer.writerows(coordinates)
 
 def process_moves():
-    moves = get_move_data()
-    for move in moves:
-        start_time = datetime.fromtimestamp(move['start_time'])
-        stop_time = datetime.fromtimestamp(move['stop_time'])
-        coordinates = extract_coordinates_for_move(start_time, stop_time)
-        if coordinates:
-            save_move_coordinates(move['move_id'], coordinates) # save move txt
-            #redis_client.rpush(MOVE_LIST_KEY, move['move_id'])
-            # Remove the processed move from the Redis list
-            redis_client.lrem(DEFINE_MOVE_KEY, 0, f"{move['move_id']}:{move['start_time']}:{move['stop_time']}")
+    move = {}
+    while True:
+        move = get_move_data()
+        if move:
+            start_time = datetime.fromtimestamp(move['start_time'])
+            stop_time = datetime.fromtimestamp(move['stop_time'])
+            coordinates = extract_coordinates_for_move(start_time, stop_time)
+            if coordinates:
+                save_move_coordinates(move['move_id'], coordinates) # save move txt
+                # Remove the processed move from the Redis list
+                redis_client.set(DEFINE_MOVE_KEY, "")
             
-            move_id = move['move_id']
-            output_file = f"recordings/{move_id}.txt"
-            interpolate(output_file, 0.2)
+                move_id = move['move_id']
+                output_file = f"recordings/{move_id}.txt"
+                interpolate(output_file, 0.2)
+            move = {}
 
 def replay_moves():
     while True:
