@@ -3,101 +3,19 @@ import time
 import csv
 from datetime import datetime, timedelta
 import asyncio
-from run_interpolation import interpolate
-
-HISTORY_FILE = 'recordings/history.txt'  # Output file for the data
+import ast
 
 # Redis configuration
 REDIS_HOST = '127.0.0.1'
 REDIS_PORT = 6379
 redis_client = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
-DEFINE_MOVE_KEY = "robot::define_move"
-MOVE_LIST_KEY = "robot::move_list"
-EXECUTE_FLAG_KEY = "robot::execute_flag"
-MOVE_EXECUTED_KEY = "robot::move_executed"
-
-RIGID_BODY_POSITION_KEYS = [
-    "sai2::realsense::left_hand",
-    "sai2::realsense::right_hand",
-    "sai2::realsense::center_hips"
-]
-        
-PANDA_RIGHT_HAND_POS = "mmp_panda::right_hand"
-PANDA_LEFT_HAND_POS = "mmp_panda::realsense::left_hand"
-PANDA_CENTER_HIPS_POS = "mmp_panda::realsense::center_hips"
-
-def get_move_data(): #define single move
-    move_data = redis_client.get(DEFINE_MOVE_KEY)
-    
-    parts = move_data.split(':')
-    move_id = parts[0]
-    start_time = float(parts[1])
-    stop_time = float(parts[2])
-    return {
-        'move_id': move_id,
-        'start_time': start_time,
-        'stop_time': stop_time
-    }
-
-def extract_coordinates_for_move(start_time, stop_time):
-    coordinates = []
-    with open(HISTORY_FILE, 'r') as file:
-        reader = csv.DictReader(file, delimiter='\t')
-        for row in reader:
-            timestamp = datetime.strptime(row['timestamp'], '%Y-%m-%d %H:%M:%S.%f')
-            if start_time <= timestamp <= stop_time:
-                coordinates.append(row)
-    return coordinates
-
-def save_move_coordinates(move_id, coordinates):
-    output_file = f"recordings/{move_id}.txt"
-    with open(output_file, 'w') as file:
-        writer = csv.DictWriter(file, fieldnames=coordinates[0].keys(), delimiter='\t')
-        writer.writeheader()
-        writer.writerows(coordinates)
-
-def process_moves():
-    move = {}
-    while True:
-        move = get_move_data()
-        if move:
-            start_time = datetime.fromtimestamp(move['start_time'])
-            stop_time = datetime.fromtimestamp(move['stop_time'])
-            coordinates = extract_coordinates_for_move(start_time, stop_time)
-            if coordinates:
-                save_move_coordinates(move['move_id'], coordinates) # save move txt
-                # Remove the processed move from the Redis list
-                redis_client.set(DEFINE_MOVE_KEY, "")
-            
-                move_id = move['move_id']
-                output_file = f"recordings/{move_id}.txt"
-                interpolate(output_file, 0.2)
-            move = {}
-
-def replay_moves():
-    while True:
-        execute_flag = redis_client.get(EXECUTE_FLAG_KEY)
-        if execute_flag == "1":
-            move_id = redis_client.lpop(MOVE_LIST_KEY)
-            if move_id:
-                execute_move(move_id)
-                redis_client.rpush(MOVE_EXECUTED_KEY, move_id)
-            else:
-                redis_client.set(EXECUTE_FLAG_KEY, "0")
-        asyncio.sleep(0.1)
-
-def execute_move(move_id):
-    file_path = f"/Users/rheamalhotra/Desktop/robotics/react-genie-robotics/optitrack/recordings/{move_id}.txt"
-    data = read_data(file_path)
-    if data:
-        publish_to_redis(data, rate_hz=30)
+DEFINE_MOVE_KEY = "robot::define_move" # single move : separated to be defined
+MOVE_LIST_KEY = "robot::move_list" #list of move ids [move1, move2]
+EXECUTE_FLAG_KEY = "robot::execute_flag" # binary 0 or 1 to execute all in move_list_key
+MOVE_EXECUTED_KEY = "robot::move_executed" #A list of move_id executed
 
 def read_data(file_path):
-    """
-    Read data from the input file and return it as a list of dictionaries.
-    Each dictionary represents a row with key-value pairs.
-    """
     data = []
     try:
         with open(file_path, 'r') as file:
@@ -110,35 +28,34 @@ def read_data(file_path):
         print(f"An error occurred while reading the file: {e}")
     return data
 
-def publish_to_redis(data, rate_hz):
-    """
-    Publish each row of data to Redis, for panda to execute.
-    """
-    interval = 1.0 / rate_hz
+def publish_to_redis(data):
     for row in data:
         timestamp = row.pop('timestamp', None)
         for key, value in row.items():
             new_key = "mmp_panda::" + key.split("::")[2]
             redis_client.set(new_key, value)
-        asyncio.sleep(interval)
+        asyncio.sleep(1.0 / 30)
 
-def test():
-    move_id = input("enter move name: ")
-    input("press enter to start recording")
-    start = time.time()
-    input("press enter to stop recording")
-    stop = time.time()
+def execute_move(move_id):
+    file_path = f"recordings/{move_id}.txt"
+    data = read_data(file_path)
+    if data:
+        publish_to_redis(data, rate_hz=30)
 
-    move = str(move_id) + ':' + str(start) + ':' + str(stop)
-
-    redis_client.set(DEFINE_MOVE_KEY, [move])
-    redis_client.set(MOVE_LIST_KEY, [move_id])
-    redis_client.set(EXECUTE_FLAG_KEY, "1")
-
-
-if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    # loop.run_until_complete(test())
-    loop.create_task(process_moves())
-    loop.create_task(replay_moves())
-    loop.run_forever()
+def replay_moves():
+    while True:
+        execute_flag = redis_client.get(EXECUTE_FLAG_KEY)
+        if execute_flag == "1":
+            move_list_str = redis_client.get(MOVE_LIST_KEY)
+            if move_list_str:
+                move_list = ast.literal_eval(move_list_str)  # Convert from string to list
+                for move in move_list:
+                    execute_move(move)
+                    executed_list_str = redis_client.get(MOVE_EXECUTED_KEY)
+                    executed_list = ast.literal_eval(executed_list_str) if executed_list_str else []
+                    executed_list.append(move)
+                    redis_client.set(MOVE_EXECUTED_KEY, str(executed_list))
+                redis_client.set(EXECUTE_FLAG_KEY, "0")
+        asyncio.sleep(0.1)
+        
+replay_moves()
