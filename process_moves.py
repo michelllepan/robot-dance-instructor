@@ -29,19 +29,19 @@ PANDA_CENTER_HIPS_POS = "mmp_panda::realsense::center_hips"
 
 def get_move_data():
     move_data = redis_client.get(DEFINE_MOVE_KEY)
-    move_data = move_data[1:-1].strip("'").split(",")
+    #move_data = move_data[1:-1].strip("'").split(",")
     print(move_data)
     moves = []
-    for move in move_data:
-        parts = move.split(':')
-        move_id = parts[0]
-        start_time = float(parts[1])
-        stop_time = float(parts[2])
-        moves.append({
-            'move_id': move_id,
-            'start_time': start_time,
-            'stop_time': stop_time
-        })
+    #for move in move_data:
+    parts = move_data.split(':')
+    move_id = parts[0]
+    start_time = float(parts[1])
+    stop_time = float(parts[2])
+    moves.append({
+        'move_id': move_id,
+        'start_time': start_time,
+        'stop_time': stop_time
+    })
     return moves
 
 def extract_coordinates_for_move(start_time, stop_time):
