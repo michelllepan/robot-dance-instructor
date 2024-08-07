@@ -53,6 +53,7 @@ def interpolate_trajectory(
     num_points: int,
     smoothness: float = 0.2,
 ) -> np.ndarray:
+    trajectory = np.unique(trajectory, axis=0)
     x, y, z = trajectory[:, 0], trajectory[:, 1], trajectory[:, 2]
     tck, u = interpolate.splprep([x, y, z], s=smoothness)
     x_i, y_i, z_i = interpolate.splev(np.linspace(0, 1, num_points), tck)
