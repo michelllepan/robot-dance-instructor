@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Dict
 
 import numpy as np
-from scipy import interpolate
 
 
 def read_log(filename: str) -> Dict[str, np.ndarray]:
@@ -46,15 +45,3 @@ def write_log(filename: str, log: Dict[str, np.ndarray]):
     with open(filename, "w") as f:
         f.write(out_string)
         print("writing log to " + filename)
-
-
-def interpolate_trajectory(
-    trajectory: np.ndarray,
-    num_points: int,
-    smoothness: float = 0.2,
-) -> np.ndarray:
-    trajectory = np.unique(trajectory, axis=0)
-    x, y, z = trajectory[:, 0], trajectory[:, 1], trajectory[:, 2]
-    tck, u = interpolate.splprep([x, y, z], s=smoothness)
-    x_i, y_i, z_i = interpolate.splev(np.linspace(0, 1, num_points), tck)
-    return np.vstack([x_i, y_i, z_i]).T

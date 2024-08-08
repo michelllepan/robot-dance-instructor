@@ -3,7 +3,6 @@ import time
 import csv
 from datetime import datetime, timedelta
 import asyncio
-from run_interpolation import interpolate
 
 HISTORY_FILE = 'recordings/history.txt'  # Output file for the data
 

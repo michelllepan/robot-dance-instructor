@@ -3,7 +3,7 @@ import time
 import csv
 from datetime import datetime, timedelta
 import asyncio
-from run_interpolation import interpolate
+from src.interpolator import interpolate_file
 
 HISTORY_FILE = 'recordings/history.txt'  # Output file for the data
 
@@ -69,6 +69,6 @@ def process_moves():
             
                 output_file = f"recordings/{move_id}.txt"
                 print("saved to " + output_file)
-                interpolate(output_file, 0.2)
+                interpolate_file(output_file, 0.2)
 
 process_moves()
