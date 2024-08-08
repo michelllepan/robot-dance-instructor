@@ -34,7 +34,7 @@ def publish_to_redis(data):
         for key, value in row.items():
             new_key = "mmp_panda::" + key.split("::")[2]
             redis_client.set(new_key, value)
-        asyncio.sleep(1.0 / 30)
+        asyncio.sleep(1.0 / 120)
 
 def execute_move(move_id):
     file_path = f"recordings/{move_id}.txt"
@@ -46,16 +46,10 @@ def replay_moves():
     while True:
         execute_flag = redis_client.get(EXECUTE_FLAG_KEY)
         if execute_flag == "1":
-            move_list_str = redis_client.get(MOVE_LIST_KEY)
-            if move_list_str:
-                move_list = ast.literal_eval(move_list_str)  # Convert from string to list
-                for move in move_list:
-                    execute_move(move)
-                    executed_list_str = redis_client.get(MOVE_EXECUTED_KEY)
-                    executed_list = ast.literal_eval(executed_list_str) if executed_list_str else []
-                    executed_list.append(move)
-                    redis_client.set(MOVE_EXECUTED_KEY, str(executed_list))
-                redis_client.set(EXECUTE_FLAG_KEY, "0")
-        asyncio.sleep(0.1)
+            move_list = redis_client.lrange(MOVE_LIST_KEY, 0, -1)
+            for move in move_list:
+                data = read_data("recordings/" + move + "_interpolated.txt")
+                publish_to_redis(data)
+            redis_client.set(EXECUTE_FLAG_KEY, "0")
         
 replay_moves()
