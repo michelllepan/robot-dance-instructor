@@ -28,28 +28,28 @@ def read_data(file_path):
         print(f"An error occurred while reading the file: {e}")
     return data
 
-def publish_to_redis(data):
+def publish_to_redis(data, rate_hz=30):
     for row in data:
         timestamp = row.pop('timestamp', None)
         for key, value in row.items():
             new_key = "mmp_panda::" + key.split("::")[2]
             redis_client.set(new_key, value)
-        asyncio.sleep(1.0 / 120)
+        print(timestamp)
+        time.sleep(1.0 / rate_hz)
 
 def execute_move(move_id):
-    file_path = f"recordings/{move_id}.txt"
+    file_path = f"recordings/{move_id}_interpolated.txt"
     data = read_data(file_path)
     if data:
-        publish_to_redis(data, rate_hz=30)
+        publish_to_redis(data, rate_hz=120)
 
 def replay_moves():
     while True:
         execute_flag = redis_client.get(EXECUTE_FLAG_KEY)
         if execute_flag == "1":
             move_list = redis_client.lrange(MOVE_LIST_KEY, 0, -1)
-            for move in move_list:
-                data = read_data("recordings/" + move + "_interpolated.txt")
-                publish_to_redis(data)
+            for move_id in move_list:
+                execute_move(move_id)
             redis_client.set(EXECUTE_FLAG_KEY, "0")
         
 replay_moves()
