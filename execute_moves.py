@@ -47,15 +47,16 @@ def execute_move(move_id):
 def replay_moves():
     while True:
         execute_flag = redis_client.get(EXECUTE_FLAG_KEY)
-        if execute_flag == "1":  # redis_client.get returns bytes
+        if execute_flag == "1": 
             print("Begining move execution")
-            while True:
-                move_id = redis_client.lpop(MOVE_LIST_KEY)
-                if move_id is None:
-                    print("Done with move execution!")
-                    break
-                execute_move(move_id.decode('utf-8'))
+            move_list = redis_client.get(MOVE_LIST_KEY)
+            for i in range(len(move_list)):
+                move_id = move_list[i]
+                next_move = move_list[i + 1] if i + 1 < len(move_list) else None
+                execute_move(move_id, next_move)
                 redis_client.rpush(MOVE_EXECUTED_KEY, move_id)
+                interpolate_between_moves(move_id, next_move)
+            print("Done with move execution!")
             redis_client.set(EXECUTE_FLAG_KEY, "0")
         
 replay_moves()
