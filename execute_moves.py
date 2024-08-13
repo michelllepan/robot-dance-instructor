@@ -4,6 +4,7 @@ import csv
 from datetime import datetime, timedelta
 import asyncio
 import ast
+from src.interpolator import interpolate_between_moves 
 
 # Redis configuration
 REDIS_HOST = '127.0.0.1'
@@ -37,9 +38,12 @@ def publish_to_redis(data, rate_hz=30):
         print(timestamp)
         time.sleep(1.0 / rate_hz)
 
-def execute_move(move_id):
+def execute_move(move_id, interpolated=True):
     print("executing ", move_id)
-    file_path = f"recordings/{move_id}_interpolated.txt"
+    if interpolated:
+        file_path = f"recordings/{move_id}_interpolated.txt"
+    else: 
+        file_path = f"recordings/{move_id}.txt"
     data = read_data(file_path)
     if data:
         publish_to_redis(data, rate_hz=120)
@@ -52,10 +56,12 @@ def replay_moves():
             move_list = redis_client.get(MOVE_LIST_KEY)
             for i in range(len(move_list)):
                 move_id = move_list[i]
-                next_move = move_list[i + 1] if i + 1 < len(move_list) else None
-                execute_move(move_id, next_move)
+                execute_move(move_id)
                 redis_client.rpush(MOVE_EXECUTED_KEY, move_id)
-                interpolate_between_moves(move_id, next_move)
+                if i + 1 < len(move_list):
+                    next_move = move_list[i + 1]
+                    interpolate_between_moves(move_id, next_move)
+                    execute_move(str(move_id) + "_to_" + str(next_move), False)
             print("Done with move execution!")
             redis_client.set(EXECUTE_FLAG_KEY, "0")
         
