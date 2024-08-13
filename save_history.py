@@ -1,6 +1,7 @@
 import redis
 import time
 import csv
+import os
 from datetime import datetime, timedelta
 import asyncio
 
@@ -21,6 +22,7 @@ prev = {key: [] for key in RIGID_BODY_POSITION_KEYS}
 history = {key: [] for key in RIGID_BODY_POSITION_KEYS}
 
 def initialize_output_file():
+    os.makedirs("recordings", exist_ok=True)
     with open(HISTORY_FILE, 'w') as file:
         header = ['timestamp'] + RIGID_BODY_POSITION_KEYS
         file.write('\t'.join(header) + '\n')
