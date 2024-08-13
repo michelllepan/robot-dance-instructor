@@ -38,6 +38,7 @@ def publish_to_redis(data, rate_hz=30):
         time.sleep(1.0 / rate_hz)
 
 def execute_move(move_id):
+    print("executing ", move_id)
     file_path = f"recordings/{move_id}_interpolated.txt"
     data = read_data(file_path)
     if data:
@@ -46,10 +47,15 @@ def execute_move(move_id):
 def replay_moves():
     while True:
         execute_flag = redis_client.get(EXECUTE_FLAG_KEY)
-        if execute_flag == "1":
-            move_list = redis_client.lrange(MOVE_LIST_KEY, 0, -1)
-            for move_id in move_list:
-                execute_move(move_id)
+        if execute_flag == "1":  # redis_client.get returns bytes
+            print("Begining move execution")
+            while True:
+                move_id = redis_client.lpop(MOVE_LIST_KEY)
+                if move_id is None:
+                    print("Done with move execution!")
+                    break
+                execute_move(move_id.decode('utf-8'))
+                redis_client.rpush(MOVE_EXECUTED_KEY, move_id)
             redis_client.set(EXECUTE_FLAG_KEY, "0")
         
 replay_moves()
