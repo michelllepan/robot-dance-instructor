@@ -88,18 +88,3 @@ class MediaPipeDetector:
             "right_shoulder": right_shoulder,
             "center_hips": center_hips,
         }
-    
-
-if __name__ == "__main__":
-    detector = MediaPipeDetector()
-    image = cv2.imread("assets/full_body.jpg")
-    detection_result = detector.run_detection(image)
-    annotated_image = detector.draw_landmarks_on_image(image, detection_result)
-    
-    landmark_dict = detector.parse_landmarks(detection_result)
-    print(landmark_dict)
-
-    while True:
-        cv2.imshow("MediaPipe", annotated_image)
-        if cv2.waitKey(1) & 0xFF == ord('q'): 
-            break

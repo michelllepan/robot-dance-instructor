@@ -4,7 +4,7 @@ import csv
 from datetime import datetime, timedelta
 import asyncio
 import ast
-from src.interpolator import interpolate_between_moves 
+from instructor.mapping.interpolator import interpolate_between_moves 
 
 # Redis configuration
 REDIS_HOST = '127.0.0.1'

@@ -9,8 +9,8 @@ import numpy as np
 import redis
 import scipy
 
-from src.camera import RealSenseCamera
-from src.detector import MediaPipeDetector
+from .camera import RealSenseCamera
+from .detector import MediaPipeDetector
 
 
 REDIS_POS_KEY = "sai2::realsense::"
@@ -22,7 +22,6 @@ class PoseTracker:
     def __init__(
         self,
         stream_outputs: bool = False,
-        capture_length: int = -1,
         history_length: int = 5,
     ):
         self.camera = RealSenseCamera()
@@ -30,40 +29,15 @@ class PoseTracker:
         self.redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
 
         self.stream_outputs = stream_outputs
-        self.capture_length = capture_length
         self.history_length = history_length
         
-        self.recording = False
+        self.timesteps = 0
         
         # initialize history
         self.history = {}
         for key in STREAMING_POINTS:
             self.history[key] = np.empty((history_length, 3))
             self.history[key][:] = np.nan
-
-    def start_recording(self):
-        os.makedirs("logs", exist_ok=True)
-        self.filename = os.path.join("logs", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-
-        header = ["timestamp"] + [REDIS_POS_KEY + p for p in STREAMING_POINTS]
-        self.out_string = "\t".join(header)
-
-        self.start_time = time.time()
-        self.timesteps = 0
-        self.recording = True
-
-    def stop_recording(self):
-        if not self.recording:
-            print("no current recording in progress!")
-            return
-
-        print("\nclosing")
-        print(f"writing to file {self.filename}.txt")
-        with open(self.filename + ".txt", "w") as file:
-            file.write(self.out_string)
-        self.recording = False
-
-        print(f"average fps: {self.timesteps / (time.time() - self.start_time)}")
 
     def smooth_values(self, key, new_value):
         # update history
@@ -126,10 +100,7 @@ class PoseTracker:
                 return None
             else:
                 return 1e-3 * depth_image[x, y]
-
-        if self.recording:
-            self.out_string += "\n" + datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-
+            
         for key in landmark_dict:
             if key not in STREAMING_POINTS:
                 continue
@@ -153,36 +124,10 @@ class PoseTracker:
 
             if self.stream_outputs:
                 self.redis_client.set(REDIS_POS_KEY + key, "[" + ", ".join(map(str, smoothed)) + "]")
-            if self.recording:
-                self.out_string += "\t[" + ", ".join(map(str, smoothed)) + "]"
 
             print(f"{key: <15}   x: {smoothed[0]: 3.2f}  y: {smoothed[1]: 3.2f}  z: {smoothed[2]: 3.2f}")
                 
         self.timesteps += 1
-        if self.capture_length > 0 and self.timesteps > self.capture_length:
-            return False
 
         cv2.imshow("RealSense", images)
         return True
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--stream_outputs", "-s", action="store_true")
-    parser.add_argument("--capture_length", "-c", type=int, default=-1)
-    args = parser.parse_args()
-
-    tracker = PoseTracker(
-        stream_outputs=args.stream_outputs,
-        capture_length=args.capture_length,
-    )
-
-    tracker.start_recording()
-    try:
-        while True:
-            if not tracker.process_frame():
-                break
-            elif cv2.waitKey(1) & 0xFF == ord('q'): 
-                break
-    finally:
-        tracker.stop_recording()

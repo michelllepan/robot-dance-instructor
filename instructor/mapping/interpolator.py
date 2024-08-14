@@ -4,7 +4,7 @@ import os
 import numpy as np
 from scipy import interpolate
 
-from .utils import read_log, write_log
+from instructor.utils import read_log, write_log
 
 
 def interpolate_trajectory(

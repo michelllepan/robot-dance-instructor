@@ -35,11 +35,11 @@ stop = time.time()
 move = str(move_id) + ':' + str(start) + ':' + str(stop)
 print("MOVE IS " + move)
 
-redis_client.set(DEFINE_MOVE_KEY, str(move)) # single move to be defined
-redis_client.set(MOVE_LIST_KEY, str(move_ids))
+# redis_client.set(DEFINE_MOVE_KEY, str(move)) # single move to be defined
+# redis_client.set(MOVE_LIST_KEY, str(move_ids))
 
-input("Press enter to start move replay!")
-redis_client.set(EXECUTE_FLAG_KEY, "1")
+# input("Press enter to start move replay!")
+# redis_client.set(EXECUTE_FLAG_KEY, "1")
 
 # print(type(move[0]))
 # redis_client.rpush(DEFINE_MOVE_KEY, move[0])
