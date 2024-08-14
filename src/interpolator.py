@@ -12,11 +12,53 @@ def interpolate_trajectory(
     num_points: int,
     smoothness: float = 0.2,
 ) -> np.ndarray:
-    trajectory = np.unique(trajectory, axis=0)
+    trajectory, indices = np.unique(trajectory, axis=0, return_index=True)
+    trajectory = trajectory[np.argsort(indices)]
     x, y, z = trajectory[:, 0], trajectory[:, 1], trajectory[:, 2]
     tck, u = interpolate.splprep([x, y, z], s=smoothness)
     x_i, y_i, z_i = interpolate.splev(np.linspace(0, 1, num_points), tck)
-    return np.vstack([x_i, y_i, z_i]).T
+    interpolated = np.vstack([x_i, y_i, z_i]).T
+
+    # rescale to within joint limits
+    # x: (0.4, 0.6)
+    # y: (-0.5, 0.5)
+    # z: (0.05, 0.85)
+    # array_min = interpolated.min(axis=0)
+    # normalized = (interpolated - array_min) / (interpolated - array_min).max(axis=0)
+
+    # normalized *= np.array([1.0, 0.8, 0.1])
+    # normalized += np.array([-0.5, 0.05, 0.45])
+    # return normalized
+
+    return interpolated
+
+
+def interpolate_between_moves(
+    move1: str,
+    move2: str,
+    smoothness: float = 0.2,
+):
+    log1 = read_log(f"recordings/{move1}_interpolated.txt")
+    log2 = read_log(f"recordings/{move2}_interpolated.txt")    
+
+    interpolated_log = {}
+    interpolated_log["timestamp"] = np.linspace(0, 1, 360)
+
+    for key in log1:
+        if key == "timestamp":
+            continue
+
+        start = log1[key][-1]
+        end = log2[key][0]
+
+        # interpolated_log[key] = interpolate_trajectory(
+        #     trajectory=np.array([start, end]),
+        #     num_points=360,
+        #     smoothness=smoothness)
+        interpolated_log[key] = np.linspace(start, end, 360)
+        
+    filename = f"recordings/{move1}_to_{move2}.txt"
+    write_log(filename, interpolated_log)
 
 
 def interpolate_file(

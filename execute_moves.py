@@ -13,7 +13,7 @@ redis_client = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, decode_respon
 
 DEFINE_MOVE_KEY = "robot::define_move" # single move : separated to be defined
 MOVE_LIST_KEY = "robot::move_list" #list of move ids [move1, move2]
-EXECUTE_FLAG_KEY = "robot::execute_flag" # binary 0 or 1 to execute all in move_list_key
+EXECUTE_FLAG_KEY = "teleop::replay_ready" # binary 0 or 1 to execute all in move_list_key
 MOVE_EXECUTED_KEY = "robot::move_executed" #A list of move_id executed
 
 def read_data(file_path):
@@ -33,9 +33,18 @@ def publish_to_redis(data, rate_hz=30):
     for row in data:
         timestamp = row.pop('timestamp', None)
         for key, value in row.items():
-            new_key = "mmp_panda::" + key.split("::")[2]
+            if key.split("::")[2] != "right_hand": continue
+
+            new_key = "teleop::desired_pos"
+
+            # value = ",".join(value.split(",")[:-1]) + ", 0.5]"
+            value = eval(value)
+            value[1] += 0.1
+            value[2] = 0.5
+            value = str(value)
+            # print(value) 
             redis_client.set(new_key, value)
-        print(timestamp)
+        # print(timestamp)
         time.sleep(1.0 / rate_hz)
 
 def execute_move(move_id, interpolated=True):
@@ -53,7 +62,7 @@ def replay_moves():
         execute_flag = redis_client.get(EXECUTE_FLAG_KEY)
         if execute_flag == "1": 
             print("Begining move execution")
-            move_list = redis_client.get(MOVE_LIST_KEY)
+            move_list = redis_client.lrange(MOVE_LIST_KEY, 0, -1)
             for i in range(len(move_list)):
                 move_id = move_list[i]
                 execute_move(move_id)
