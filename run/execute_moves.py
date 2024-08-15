@@ -4,7 +4,7 @@ import csv
 from datetime import datetime, timedelta
 import asyncio
 import ast
-from instructor.moves.interpolator import interpolate_between_moves 
+from instructor.moves.interpolation import interpolate_between_moves 
 from instructor.utils import get_config, make_redis_client
 
 cfg = get_config()
