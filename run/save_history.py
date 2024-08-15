@@ -4,27 +4,26 @@ import csv
 import os
 from datetime import datetime, timedelta
 import asyncio
+from instructor.utils import get_config, make_redis_client
 
-HISTORY_FILE = 'recordings/history.txt'  # Output file for the data
 
-# Redis configuration
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
-redis_client = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+cfg = get_config()
+redis_client = make_redis_client()
 
-RIGID_BODY_POSITION_KEYS = [
-    "sai2::realsense::left_hand",
-    "sai2::realsense::right_hand",
-    "sai2::realsense::center_hips"
-]
+detection_keys = []
+for point in cfg["pose_keypoints"]:
+    detection_keys.append(cfg["redis"]["realsense_prefix"] + point)
 
-prev = {key: [] for key in RIGID_BODY_POSITION_KEYS}
-history = {key: [] for key in RIGID_BODY_POSITION_KEYS}
+prev = {key: [] for key in detection_keys}
+history = {key: [] for key in detection_keys}
+
+recordings_dir = cfg["dirs"]["recordings"]
+os.makedirs(recordings_dir, exist_ok=True)
+history_file = os.path.join(recordings_dir, "history.txt")
 
 def initialize_output_file():
-    os.makedirs("recordings", exist_ok=True)
-    with open(HISTORY_FILE, 'w') as file:
-        header = ['timestamp'] + RIGID_BODY_POSITION_KEYS
+    with open(history_file, 'w') as file:
+        header = ['timestamp'] + detection_keys
         file.write('\t'.join(header) + '\n')
 
 def append_to_output_file(history):
@@ -32,9 +31,9 @@ def append_to_output_file(history):
     Append rows of data from the history to the output file.
     Each row includes a timestamp followed by the values for each key.
     """
-    with open(HISTORY_FILE, 'a') as file:
+    with open(history_file, 'a') as file:
         for timestamp in sorted(set(entry['timestamp'] for key in history for entry in history[key])):
-            row = [timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')] + [next((entry['value'] for entry in history[key] if entry['timestamp'] == timestamp), 'None') for key in RIGID_BODY_POSITION_KEYS]
+            row = [timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')] + [next((entry['value'] for entry in history[key] if entry['timestamp'] == timestamp), 'None') for key in detection_keys]
             file.write('\t'.join(row) + '\n')
 
 def read_and_append_keys():
@@ -46,8 +45,8 @@ def read_and_append_keys():
     key_index = 0
     while True:
         current_time = datetime.now()
-        for key_index in range(len(RIGID_BODY_POSITION_KEYS)):
-            key = RIGID_BODY_POSITION_KEYS[key_index]
+        for key_index in range(len(detection_keys)):
+            key = detection_keys[key_index]
 
             try:
                 value = redis_client.get(key)
@@ -59,7 +58,7 @@ def read_and_append_keys():
                 print(f"Redis connection error: {e}")
                 return
             
-        key_changed = [not prev[key] or prev[key][0]["value"] != history[key][0]["value"] for key in RIGID_BODY_POSITION_KEYS]
+        key_changed = [not prev[key] or prev[key][0]["value"] != history[key][0]["value"] for key in detection_keys]
         if any(key_changed):
             append_to_output_file(history)
 

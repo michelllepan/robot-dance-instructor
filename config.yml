@@ -1,0 +1,22 @@
+pose_keypoints:
+  - "left_hand"
+  - "right_hand"
+  - "center_hips"
+
+redis:
+  host: "127.0.0.1"
+  port: 6379
+  realsense_prefix: "realsense::"
+  keys:
+    define_move: "robot::define_move"
+    move_list: "robot::move_list"
+    execute_flag: "teleop::replay_ready"
+    goal_pos: "teleop::desired_pos"
+    move_executed: "robot::move_executed"
+    
+
+rate: 120 #Hz
+
+dirs:
+  recordings: "recordings/"
+  

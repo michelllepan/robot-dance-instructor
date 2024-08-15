@@ -4,17 +4,16 @@ import csv
 from datetime import datetime, timedelta
 import asyncio
 import ast
-from instructor.mapping.interpolator import interpolate_between_moves 
+from instructor.moves.interpolator import interpolate_between_moves 
+from instructor.utils import get_config, make_redis_client
 
-# Redis configuration
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
-redis_client = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+cfg = get_config()
+redis_client = make_redis_client()
 
-DEFINE_MOVE_KEY = "robot::define_move" # single move : separated to be defined
-MOVE_LIST_KEY = "robot::move_list" #list of move ids [move1, move2]
-EXECUTE_FLAG_KEY = "teleop::replay_ready" # binary 0 or 1 to execute all in move_list_key
-MOVE_EXECUTED_KEY = "robot::move_executed" #A list of move_id executed
+DEFINE_MOVE_KEY = cfg["redis"]["keys"]["define_move"]
+MOVE_LIST_KEY = cfg["redis"]["keys"]["move_list"]
+EXECUTE_FLAG_KEY = cfg["redis"]["keys"]["execute_flag"]
+MOVE_EXECUTED_KEY = cfg["redis"]["keys"]["move_executed"]
 
 def read_data(file_path):
     data = []

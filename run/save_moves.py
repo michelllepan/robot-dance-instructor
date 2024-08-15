@@ -1,27 +1,20 @@
 import redis
 import time
+import os
 import csv
 from datetime import datetime, timedelta
 import asyncio
-from instructor.mapping.interpolator import interpolate_file
+from instructor.moves.interpolator import interpolate_file
+from instructor.utils import get_config, make_redis_client
 
-HISTORY_FILE = 'recordings/history.txt'  # Output file for the data
+cfg = get_config()
+redis_client = make_redis_client()
 
-# Redis configuration
-REDIS_HOST = '127.0.0.1'
-REDIS_PORT = 6379
-redis_client = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+recordings_dir = cfg["dirs"]["recordings"]
+history_file = os.path.join(recordings_dir, "history.txt")
 
-DEFINE_MOVE_KEY = "robot::define_move"
-MOVE_LIST_KEY = "robot::move_list"
-EXECUTE_FLAG_KEY = "robot::execute_flag"
-MOVE_EXECUTED_KEY = "robot::move_executed"
+DEFINE_MOVE_KEY = cfg["redis"]["keys"]["define_move"]
 
-RIGID_BODY_POSITION_KEYS = [
-    "sai2::realsense::left_hand",
-    "sai2::realsense::right_hand",
-    "sai2::realsense::center_hips"
-]
 def get_move_data(): #define single move
     move_data = redis_client.get(DEFINE_MOVE_KEY)
     
@@ -37,7 +30,7 @@ def get_move_data(): #define single move
 
 def extract_coordinates_for_move(start_time, stop_time):
     coordinates = []
-    with open(HISTORY_FILE, 'r') as file:
+    with open(history_file, 'r') as file:
         reader = csv.DictReader(file, delimiter='\t')
         for row in reader:
             timestamp = datetime.strptime(row['timestamp'], '%Y-%m-%d %H:%M:%S.%f')
@@ -67,7 +60,7 @@ def process_moves():
                 # Remove the processed move from the Redis list
                 redis_client.set(DEFINE_MOVE_KEY, "")
             
-                output_file = f"recordings/{move_id}.txt"
+                output_file = os.path.join(recordings_dir, move_id + ".txt")
                 print("saved to " + output_file)
                 interpolate_file(output_file, 0.2)
 

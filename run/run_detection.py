@@ -1,10 +1,8 @@
 import argparse
-from datetime import datetime
-from typing import Sequence
 
 import cv2
 
-from instructor.detection import RealSenseCamera, MediaPipeDetector, PoseTracker
+from instructor.detection import PoseTracker
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ import os
 import numpy as np
 from scipy import interpolate
 
-from instructor.utils import read_log, write_log
+from instructor.utils import read_log_array, write_log_array
 
 
 def interpolate_trajectory(
@@ -38,8 +38,8 @@ def interpolate_between_moves(
     move2: str,
     smoothness: float = 0.2,
 ):
-    log1 = read_log(f"recordings/{move1}_interpolated.txt")
-    log2 = read_log(f"recordings/{move2}_interpolated.txt")    
+    log1 = read_log_array(f"recordings/{move1}_interpolated.txt")
+    log2 = read_log_array(f"recordings/{move2}_interpolated.txt")    
 
     interpolated_log = {}
     interpolated_log["timestamp"] = np.linspace(0, 1, 360)
@@ -58,7 +58,7 @@ def interpolate_between_moves(
         interpolated_log[key] = np.linspace(start, end, 360)
         
     filename = f"recordings/{move1}_to_{move2}.txt"
-    write_log(filename, interpolated_log)
+    write_log_array(filename, interpolated_log)
 
 
 def interpolate_file(
@@ -66,7 +66,7 @@ def interpolate_file(
     smoothness: float = 0.2,
     frequency: int = 120,
 ):
-    log = read_log(filename)
+    log = read_log_array(filename)
     interpolated_log = {}
 
     timestamps = log["timestamp"]
@@ -84,7 +84,7 @@ def interpolate_file(
             smoothness=smoothness)
 
     interpolated_filename = filename.strip(".txt") + "_interpolated.txt"
-    write_log(interpolated_filename, interpolated_log)
+    write_log_array(interpolated_filename, interpolated_log)
 
 
 if __name__ == "__main__":

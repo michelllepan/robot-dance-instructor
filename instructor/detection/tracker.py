@@ -11,10 +11,9 @@ import scipy
 
 from .camera import RealSenseCamera
 from .detector import MediaPipeDetector
+from ..utils import get_config, make_redis_client
 
 
-REDIS_POS_KEY = "sai2::realsense::"
-STREAMING_POINTS = ["left_hand", "right_hand", "center_hips"]
 EMA_BETA = 0.9
 
 class PoseTracker:
@@ -24,18 +23,21 @@ class PoseTracker:
         stream_outputs: bool = False,
         history_length: int = 5,
     ):
+        cfg = get_config()
+        self.realsense_prefix = cfg["redis"]["realsense_prefix"]
+        self.streaming_points = cfg["pose_keypoints"]
+
         self.camera = RealSenseCamera()
         self.detector = MediaPipeDetector()
-        self.redis_client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        self.redis_client = make_redis_client()
 
         self.stream_outputs = stream_outputs
         self.history_length = history_length
-        
         self.timesteps = 0
-        
+
         # initialize history
         self.history = {}
-        for key in STREAMING_POINTS:
+        for key in self.streaming_points:
             self.history[key] = np.empty((history_length, 3))
             self.history[key][:] = np.nan
 
@@ -102,7 +104,7 @@ class PoseTracker:
                 return 1e-3 * depth_image[x, y]
             
         for key in landmark_dict:
-            if key not in STREAMING_POINTS:
+            if key not in self.streaming_points:
                 continue
 
             landmark = landmark_dict[key]
@@ -123,7 +125,7 @@ class PoseTracker:
                 continue
 
             if self.stream_outputs:
-                self.redis_client.set(REDIS_POS_KEY + key, "[" + ", ".join(map(str, smoothed)) + "]")
+                self.redis_client.set(self.realsense_prefix + key, "[" + ", ".join(map(str, smoothed)) + "]")
 
             print(f"{key: <15}   x: {smoothed[0]: 3.2f}  y: {smoothed[1]: 3.2f}  z: {smoothed[2]: 3.2f}")
                 

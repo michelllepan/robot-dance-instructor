@@ -1,6 +1,6 @@
 import argparse
 
-from instructor.mapping.interpolator import interpolate_file
+from instructor.moves.interpolator import interpolate_file
 
 
 if __name__ == "__main__":

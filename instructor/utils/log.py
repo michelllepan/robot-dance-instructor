@@ -4,7 +4,7 @@ from typing import Dict
 import numpy as np
 
 
-def read_log(filename: str) -> Dict[str, np.ndarray]:
+def read_log_array(filename: str) -> Dict[str, np.ndarray]:
     with open(filename, "r") as f:
         print("reading log from " + filename)
         lines = f.readlines()
@@ -30,7 +30,7 @@ def read_log(filename: str) -> Dict[str, np.ndarray]:
         return log
 
 
-def write_log(filename: str, log: Dict[str, np.ndarray]):
+def write_log_array(filename: str, log: Dict[str, np.ndarray]):
     # write headers
     out_string = "\t".join(log.keys())
 
@@ -40,7 +40,7 @@ def write_log(filename: str, log: Dict[str, np.ndarray]):
         out_string += "\n" + dt.strftime("%Y-%m-%d %H:%M:%S.%f")
 
         for e in entry[1:]:
-            out_string += "\t[" + ", ".join(map(str, e)) + "]"
+            out_string += "\t" + str(list(e))
 
     with open(filename, "w") as f:
         f.write(out_string)

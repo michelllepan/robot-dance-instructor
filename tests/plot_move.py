@@ -4,12 +4,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 
-from instructor.utils.read_write import read_log
+from instructor.utils import get_config, read_log_array
 
 
 def main(filename: str, key: str):
-    log = read_log(filename)
-    points = log["sai2::realsense::" + key].T
+    cfg = get_config()
+    log = read_log_array(filename)
+    points = log[cfg["redis"]["realsense_prefix"] + key].T
 
     timestamps = np.array(log["timestamp"])
     timestamps = (timestamps - timestamps[0]) / (timestamps[-1] - timestamps[0])
