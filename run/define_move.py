@@ -1,15 +1,22 @@
-import os
+import argparse
 import time
 
 from instructor.utils import get_config, make_redis_client
 
 
-def main():
+def main(wait=False):
     cfg = get_config()
     redis_client = make_redis_client()
 
     move_name = input("enter move name: ")
     input("press enter to start recording")
+
+    if wait:
+        for i in range(3, 0, -1):
+            print(i)
+            time.sleep(1)
+        print("go")
+        
     start = time.time()
     input("press enter to stop recording")
     stop = time.time()
@@ -25,4 +32,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--wait", "-w", action="store_true")
+    args = parser.parse_args()
+    main(wait=args.wait)
