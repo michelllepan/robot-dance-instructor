@@ -62,6 +62,6 @@ def process_moves():
             
                 output_file = os.path.join(recordings_dir, move_id + ".txt")
                 print("saved to " + output_file)
-                interpolate_file(output_file, 0.2)
+                interpolate_file(output_file, 0.2, frequency=1000)
 
 process_moves()
