@@ -56,24 +56,24 @@ class MediaPipeDetector:
         nose = landmark_to_vec(pose_landmarks[0])
 
         # LEFT
-        left_pinky = landmark_to_vec(pose_landmarks[17])
-        left_index = landmark_to_vec(pose_landmarks[19])
-        left_thumb = landmark_to_vec(pose_landmarks[21])
+        left_pinky = landmark_to_vec(pose_landmarks[18])
+        left_index = landmark_to_vec(pose_landmarks[20])
+        left_thumb = landmark_to_vec(pose_landmarks[22])
         left_hand = np.mean((left_pinky, left_index, left_thumb), axis=0)
 
-        left_elbow = landmark_to_vec(pose_landmarks[13])
-        left_shoulder = landmark_to_vec(pose_landmarks[11])
-        left_hip = landmark_to_vec(pose_landmarks[23])
+        left_elbow = landmark_to_vec(pose_landmarks[14])
+        left_shoulder = landmark_to_vec(pose_landmarks[12])
+        left_hip = landmark_to_vec(pose_landmarks[24])
 
         # RIGHT
-        right_pinky = landmark_to_vec(pose_landmarks[18])
-        right_index = landmark_to_vec(pose_landmarks[20])
-        right_thumb = landmark_to_vec(pose_landmarks[22])
+        right_pinky = landmark_to_vec(pose_landmarks[17])
+        right_index = landmark_to_vec(pose_landmarks[19])
+        right_thumb = landmark_to_vec(pose_landmarks[21])
         right_hand = np.mean((right_pinky, right_index, right_thumb), axis=0)
 
-        right_elbow = landmark_to_vec(pose_landmarks[14])
-        right_shoulder = landmark_to_vec(pose_landmarks[12])
-        right_hip = landmark_to_vec(pose_landmarks[24])
+        right_elbow = landmark_to_vec(pose_landmarks[13])
+        right_shoulder = landmark_to_vec(pose_landmarks[11])
+        right_hip = landmark_to_vec(pose_landmarks[23])
 
         # CENTER
         center_shoulders = np.mean((left_shoulder, right_shoulder), axis=0)
