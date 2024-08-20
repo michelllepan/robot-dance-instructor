@@ -67,8 +67,8 @@ class PoseTracker:
         print(f"\nt = {self.timesteps}")
         depth_frame, color_frame = self.camera.get_frames()
 
-        depth_image = np.asanyarray(depth_frame.get_data())
-        color_image = np.asanyarray(color_frame.get_data())
+        depth_image = np.asanyarray(depth_frame.get_data())[:,::-1]
+        color_image = np.asanyarray(color_frame.get_data())[:,::-1,:]
 
         depth_image = scipy.signal.convolve2d(
             in1=depth_image,
