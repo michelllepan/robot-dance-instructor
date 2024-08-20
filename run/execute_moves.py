@@ -38,44 +38,22 @@ def read_data(file_path):
         print(f"An error occurred while reading the file: {e}")
     return data
 
-# def publish_to_redis(data, rate_hz=30):
-#     for row in data:
-#         timestamp = row.pop('timestamp', None)
-#         for key, value in row.items():
-#             if key.split("::")[1] != "right_hand": continue
-
-#             new_key = "teleop::desired_pos"
-
-#             coords = np.array(eval(value))
-#             coords = rot.apply(coords)
-
-#             coords[0] = 0.5
-
-#             y_min, y_max = -0.5, 0.5
-#             coords[1] = 
-
-#             value = str(list(coords))
-#             redis_client.set(new_key, value)
-#         # print(timestamp)
-#         time.sleep(1.0 / rate_hz)
-
 def publish_to_redis(data, rate_hz=30):
-    coords = data[REALSENSE_PREFIX + "right_hand"]
-    coords = rot.apply(coords)
+    hand_coords = rot.apply(data[REALSENSE_PREFIX + "right_hand"])
+    shoulder_coords = rot.apply(data[REALSENSE_PREFIX + "center_shoulders"])
+    hip_coords = rot.apply(data[REALSENSE_PREFIX + "center_hips"])
 
-    # cmin = np.min(coords, axis=0)
-    # coords_zeroed = coords - cmin
+    goal_coords = hand_coords - hip_coords
 
-    # cmax = np.max(coords_zeroed, axis=0) + np.finfo(coords.dtype).eps
-    # coords_norm = coords_zeroed / cmax
+    torso_length = (shoulder_coords - hip_coords)[:,1:]
+    torso_length = np.mean(np.linalg.norm(torso_length, axis=1))
 
-    # coords_norm[:, 0] = 0.5
-    # coords_norm[:, 1] -= 1.0
-    # coords_norm[:, 2] *= 0.8
+    arm_length = 1.5 * torso_length
+    goal_coords /= 2 * arm_length
 
     coords = np.clip(
-        a=coords,
-        a_min=[0.49, -0.5, 0.1],
+        a=goal_coords,
+        a_min=[0.49, -0.5, 0],
         a_max=[0.51, 0.5, 0.8],
     )
 
@@ -89,9 +67,6 @@ def execute_move(move_id, interpolated=True):
         file_path = f"recordings/{move_id}_interpolated.txt"
     else: 
         file_path = f"recordings/{move_id}.txt"
-    # data = read_data(file_path)
-    # if data:
-    #     publish_to_redis(data, rate_hz=1000)
 
     data = read_log_array(file_path)
     publish_to_redis(data, rate_hz=1000)
