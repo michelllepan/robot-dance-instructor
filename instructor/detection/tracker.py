@@ -80,7 +80,7 @@ class PoseTracker:
             cv2.convertScaleAbs(depth_image, alpha=0.03),cv2.COLORMAP_JET)
         
         depth_colormap_dim = depth_colormap.shape
-        width, height, _ = depth_colormap_dim
+        height, width, _ = depth_colormap_dim
         color_colormap_dim = color_image.shape
 
         if depth_colormap_dim != color_colormap_dim:
@@ -101,7 +101,7 @@ class PoseTracker:
             if x < 0 or x >= width or y < 0 or y >= height:
                 return None
             else:
-                return 1e-3 * depth_image[x, y]
+                return 1e-3 * depth_image[y, x]
             
         for key in landmark_dict:
             if key not in self.streaming_points:
