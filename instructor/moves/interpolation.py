@@ -83,7 +83,7 @@ def interpolate_file(
             num_points=num_points,
             smoothness=smoothness)
 
-    interpolated_filename = filename.strip(".txt") + "_interpolated.txt"
+    interpolated_filename = filename.removesuffix(".txt") + "_interpolated.txt"
     write_log_array(interpolated_filename, interpolated_log)
 
 
