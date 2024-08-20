@@ -16,7 +16,8 @@ redis:
     move_executed: "robot::move_executed"
     
 
-rate: 120 #Hz
+rate: 1000 #Hz
+smoothness: 0.05
 
 dirs:
   recordings: "recordings/"

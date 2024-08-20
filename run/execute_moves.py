@@ -69,7 +69,7 @@ def execute_move(move_id, interpolated=True):
         file_path = f"recordings/{move_id}.txt"
 
     data = read_log_array(file_path)
-    publish_to_redis(data, rate_hz=1000)
+    publish_to_redis(data, rate_hz=cfg["rate"])
 
 def replay_moves():
     while True:
