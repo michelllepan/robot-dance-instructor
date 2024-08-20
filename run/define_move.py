@@ -18,6 +18,11 @@ def main():
     print("move is " + move)
     redis_client.set(cfg["redis"]["keys"]["define_move"], move)
 
+    input("press enter to play move")
+    redis_client.delete(cfg["redis"]["keys"]["move_list"])
+    redis_client.lpush(cfg["redis"]["keys"]["move_list"], move_name)
+    redis_client.set(cfg["redis"]["keys"]["execute_flag"], 1)
+
 
 if __name__ == "__main__":
     main()
