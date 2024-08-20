@@ -4,6 +4,8 @@ import csv
 from datetime import datetime, timedelta
 import asyncio
 import ast
+import numpy as np
+from scipy.spatial.transform import Rotation as R
 from instructor.moves.interpolation import interpolate_between_moves 
 from instructor.utils import get_config, make_redis_client
 
@@ -14,6 +16,12 @@ DEFINE_MOVE_KEY = cfg["redis"]["keys"]["define_move"]
 MOVE_LIST_KEY = cfg["redis"]["keys"]["move_list"]
 EXECUTE_FLAG_KEY = cfg["redis"]["keys"]["execute_flag"]
 MOVE_EXECUTED_KEY = cfg["redis"]["keys"]["move_executed"]
+
+# rotate 90 counterclockwise around x
+r1 = R.from_rotvec(np.pi/2 * np.array([1, 0, 0]))
+# rotate 90 counterclockwise around z
+r2 = R.from_rotvec(np.pi/2 * np.array([0, 0, 1]))
+rot = r2 * r1
 
 def read_data(file_path):
     data = []
@@ -32,16 +40,18 @@ def publish_to_redis(data, rate_hz=30):
     for row in data:
         timestamp = row.pop('timestamp', None)
         for key, value in row.items():
-            if key.split("::")[2] != "right_hand": continue
+            if key.split("::")[1] != "right_hand": continue
 
             new_key = "teleop::desired_pos"
 
-            # value = ",".join(value.split(",")[:-1]) + ", 0.5]"
-            value = eval(value)
-            value[1] += 0.1
-            value[2] = 0.5
-            value = str(value)
+            coords = np.array(eval(value))
+            # print(rot.dtype)
+            # print(coords.shape)
+            coords = rot.apply(coords)
+            # print(coords)
+
             # print(value) 
+            value = str(list(coords))
             redis_client.set(new_key, value)
         # print(timestamp)
         time.sleep(1.0 / rate_hz)
@@ -54,7 +64,7 @@ def execute_move(move_id, interpolated=True):
         file_path = f"recordings/{move_id}.txt"
     data = read_data(file_path)
     if data:
-        publish_to_redis(data, rate_hz=120)
+        publish_to_redis(data, rate_hz=1000)
 
 def replay_moves():
     while True:
