@@ -76,6 +76,7 @@ class MediaPipeDetector:
         right_hip = landmark_to_vec(pose_landmarks[24])
 
         # CENTER
+        center_shoulders = np.mean((left_shoulder, right_shoulder), axis=0)
         center_hips = np.mean((left_hip, right_hip), axis=0)
 
         return {
@@ -86,5 +87,6 @@ class MediaPipeDetector:
             "right_hand": right_hand,
             "right_elbow": right_elbow,
             "right_shoulder": right_shoulder,
+            "center_shoulders": center_shoulders,
             "center_hips": center_hips,
         }

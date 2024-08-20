@@ -2,6 +2,7 @@ pose_keypoints:
   - "left_hand"
   - "right_hand"
   - "center_hips"
+  - "center_shoulders"
 
 redis:
   host: "127.0.0.1"
