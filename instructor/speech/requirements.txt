@@ -1,0 +1,5 @@
+pyaudio
+azure-cognitiveservices-speech
+openai
+python-dotenv
+redis
