@@ -25,7 +25,7 @@ REDIS_DB = 0
 
 DEFINE_MOVE_KEY = "robot::define_move"
 MOVE_LIST_KEY = "robot::move_list"
-EXECUTE_FLAG_KEY = "robot::execute_flag"
+EXECUTE_FLAG_KEY = "teleop::replay_ready"
 MOVE_EXECUTED_KEY = "robot::move_executed"
 
 
@@ -35,7 +35,7 @@ class AppSessionObject(RuntimeSession):
         self.redis = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
 
 
-class SpeechRecognizerApp(Runtime[AppSessionObject]):
+class SpeechRecognizerApp(Runtime):
     def __init__(self, root):
         self.root = root
         self.root.title("Speech Recognizer")
@@ -290,18 +290,20 @@ class SpeechRecognizerApp(Runtime[AppSessionObject]):
         self.log_to_console(f"Executing moves: {session.pending_moves}")
 
         # Add pending moves to the Redis list
-        for move_id in session.pending_moves:
-            await session.redis.rpush(MOVE_LIST_KEY, move_id)
+        if len(session.pending_moves) > 0:
+            for move_id in session.pending_moves:
+                await session.redis.rpush(MOVE_LIST_KEY, move_id)
 
-        # Set the execute flag to trigger the robot controller
-        await session.redis.set(EXECUTE_FLAG_KEY, "1")
+            # Set the execute flag to trigger the robot controller
+            await session.redis.set(EXECUTE_FLAG_KEY, "1")
 
-        # Wait for the robot to execute all moves
-        while True:
-            executed_moves = await session.redis.llen(MOVE_EXECUTED_KEY)
-            if executed_moves == len(session.pending_moves):
-                break
-            await asyncio.sleep(0.1)
+            # Wait for the robot to execute all moves
+            while True:
+                executed_moves = await session.redis.llen(MOVE_EXECUTED_KEY)
+                if executed_moves == len(session.pending_moves):
+                    break
+                await asyncio.sleep(0.1)
+
 
         self.log_to_console("All moves executed")
 

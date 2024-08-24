@@ -13,7 +13,7 @@ class RuntimeSession(abc.ABC):
 RuntimeSessionObject = TypeVar('RuntimeSessionObject', bound=RuntimeSession)
 
 
-class Runtime[RuntimeSessionObject](abc.ABC):
+class Runtime(abc.ABC):
     @abc.abstractmethod
     async def start_session(self) -> RuntimeSessionObject:
         pass
