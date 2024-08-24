@@ -15,19 +15,6 @@ history_file = os.path.join(recordings_dir, "history.txt")
 
 DEFINE_MOVE_KEY = cfg["redis"]["keys"]["define_move"]
 
-def get_move_data(): #define single move
-    move_data = redis_client.get(DEFINE_MOVE_KEY)
-    
-    parts = move_data.split(':')
-    move_id = parts[0]
-    start_time = float(parts[1])
-    stop_time = float(parts[2])
-    return {
-        'move_id': move_id,
-        'start_time': start_time,
-        'stop_time': stop_time
-    }
-
 def extract_coordinates_for_move(start_time, stop_time):
     coordinates = []
     with open(history_file, 'r') as file:
@@ -48,7 +35,7 @@ def save_move_coordinates(move_id, coordinates):
 def process_moves():
     move = {}
     while True:
-        move = redis_client.get(DEFINE_MOVE_KEY)
+        move = redis_client.lpop(DEFINE_MOVE_KEY)
         if move:
             parts = move.split(':')
             move_id = parts[0]
@@ -57,8 +44,6 @@ def process_moves():
             coordinates = extract_coordinates_for_move(start_time, stop_time)
             if coordinates:
                 save_move_coordinates(move_id, coordinates) # save move txt
-                # Remove the processed move from the Redis list
-                redis_client.set(DEFINE_MOVE_KEY, "")
             
                 output_file = os.path.join(recordings_dir, move_id + ".txt")
                 print("saved to " + output_file)
