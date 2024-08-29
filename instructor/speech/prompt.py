@@ -80,7 +80,43 @@ robot_prompt = [
         "content": [
             {
                 "type": "text",
-                "text": "Please do three move 1 and three move 2. <response command=\"move(1);move(1);move(1);move(2);move(2);move(2);\"/>"
+                "text": "Please do three move 1 and three move 2. <response command=\"move(1,[]);move(1);move(1);move(2);move(2);move(2);\"/>"
+            }
+        ]
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": "Please do move 1 slower and rotate left."
+            }
+        ]
+    },
+    {
+        "role": "assistant",
+        "content": [
+            {
+                "type": "text",
+                "text": "Please do move 1 slower and rotate left. <response command=\"move(1,['slower','rotate_left']);\"/>"
+            }
+        ]
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": "Now perform move 2 faster and rotate right."
+            }
+        ]
+    },
+    {
+        "role": "assistant",
+        "content": [
+            {
+                "type": "text",
+                "text": "Now perform move 2 faster and rotate right. <response command=\"move(2,['faster','rotate_right']);\"/>"
             }
         ]
     },
