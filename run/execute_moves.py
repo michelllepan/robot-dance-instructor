@@ -4,6 +4,7 @@ import csv
 from datetime import datetime, timedelta
 import asyncio
 import ast
+from instructor.moves.moves import Move
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from instructor.moves.interpolation import interpolate_between_moves, interpolate_file 
@@ -131,8 +132,8 @@ def publish_to_redis(data, move_edits, rate_hz=30):
         redis_client.set("teleop::desired_pos", str(list(c)))
         time.sleep(1.0 / rate_hz)
 
-def execute_move(move_id, move_edits, interpolated=True):
-    print("Executing ", move_id, " with edits: ", move_edits)
+def execute_replay_move(move_id, move_edits, interpolated=True):
+    print(f"Executing replay move: {move_id} with edits: {move_edits}")
     if interpolated:
         file_path = f"recordings/{move_id}_interpolated.txt"
     else: 
@@ -141,21 +142,82 @@ def execute_move(move_id, move_edits, interpolated=True):
     data = read_log_array(edited_file_path)
     publish_to_redis(data, move_edits, rate_hz=cfg["rate"])
 
+def resting_position():
+    pass
+###################################################################################
+# FOLLOW
+def execute_follow_move(move: Move):
+    print(f"Executing follow move: Hand = {move.hand}, Duration = {move.duration} seconds")
+    hand = move.hand
+    start_time = time.time()
+
+    # Loop for the move duration
+    while time.time() - start_time < move.duration:
+        position = redis.get(hand)  # Fetch the hand's position from Redis
+        redis.set('kinova-position', position)  # Set the robot's position
+        time.sleep(0.01)  
+    print(f"Finished following {move.hand}")
+    resting_position()  # Move to the resting position once finished
+
+###################################################################################
+# TAKE
+def execute_take_move(move: Move):
+    ## call VLM(move.object_to_take)
+    # if can't detect object ask to point at the object
+    print(f"Executing take move: Object = {move.object_to_take}")
+
+###################################################################################
+# FREE SPACE
+def execute_free_space_move(move: Move):
+    # Placeholder logic for executing a free-space move
+    redis.set('kinova-position', (move.magnitude, move.direction))
+    print(f"Executing free-space move: Magnitude = {move.magnitude}, Direction = {move.direction}")
+
+###################################################################################
+# POINTING
+def execute_pointing_move(move: Move):
+    # Placeholder logic for executing a pointing move
+    direction = redis.get('torso') - redis.get(move.hand) ## ned a way to calculate direction from hand vector
+    redis.set('kinova-position', (move.magnitude, direction))
+    print(f"Executing pointing move: Magnitude = {move.magnitude}")
+
+###################################################################################
 def replay_moves():
     while True:
         execute_flag = redis_client.get(EXECUTE_FLAG_KEY)
         if execute_flag == "1": 
             print("Begining move execution")
-            move_list = redis_client.lrange(MOVE_LIST_KEY, 0, -1) # list of tuples
+            move_list = redis_client.lrange(MOVE_LIST_KEY, 0, -1) # list of Moves
             for i in range(len(move_list)):
-                move_id = move_list[i][0]
-                move_edits = move_list[i][1]
-                execute_move(move_id, move_edits)
-                redis_client.rpush(MOVE_EXECUTED_KEY, move_list[i])
-                if i + 1 < len(move_list):
-                    next_move = move_list[i + 1]
-                    interpolate_between_moves(move_list[i], next_move) #interpolate function needs to take in edits also
-                    execute_move(str(move_id) + "_to_" + str(next_move[0]), False)
+                move = move_list[i]
+                
+                if move.move_type == 'replay':
+                    move_id = move.replay_id
+                    move_edits = move.move_edits
+                    execute_replay_move(move_id, move_edits)
+
+                    # Interpolation logic between consecutive moves
+                    if i + 1 < len(move_list):
+                        next_move = move_list[i + 1]
+                        if next_move.move_type == 'replay':
+                            interpolate_between_moves(move, next_move)
+                            execute_replay_move(str(move_id) + "_to_" + str(next_move.replay_id), False)
+
+                elif move.move_type == 'follow':
+
+                    execute_follow_move(move)
+
+                elif move.move_type == 'take':
+                    execute_take_move(move)
+
+                elif move.move_type == 'free-space':
+                    execute_free_space_move(move)
+
+                elif move.move_type == 'pointing':
+                    execute_pointing_move(move)
+
+            print("Done with move execution!")
+            redis_client.set(EXECUTE_FLAG_KEY, "0")
             print("Done with move execution!")
             redis_client.set(EXECUTE_FLAG_KEY, "0")
         

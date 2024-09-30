@@ -13,7 +13,7 @@ class Move:
     
     def __post_init__(self):
         # Validate move_type
-        valid_types = {'follow', 'take', 'free-space', 'replay', 'pointing'}
+        valid_types = {'follow', 'take', 'free-space', 'replay', 'point'}
         if self.move_type not in valid_types:
             raise ValueError(f"Invalid move_type: {self.move_type}. Must be one of {valid_types}")
         
@@ -34,9 +34,9 @@ class Move:
             if not isinstance(self.magnitude, (int, float)) or not isinstance(self.direction, str):
                 raise ValueError("Free-space mode requires a magnitude (float/int) and a direction (str)")
         
-        elif self.move_type == 'pointing':
+        #elif self.move_type == 'point':
             if not isinstance(self.magnitude, (int, float)):
-                raise ValueError("Pointing mode requires a magnitude (float/int)")
+                raise ValueError("Point mode requires a magnitude (float/int)")
     
     def execute(self):
         if self.move_type == 'replay':
@@ -47,8 +47,8 @@ class Move:
             return self._execute_take()
         elif self.move_type == 'free-space':
             return self._execute_free_space()
-        elif self.move_type == 'pointing':
-            return self._execute_pointing()
+        elif self.move_type == 'point':
+            return self._execute_point()
 
     def _execute_replay(self):
         # Execute logic for replay mode
