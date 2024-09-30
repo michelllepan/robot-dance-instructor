@@ -10,6 +10,7 @@ import azure.cognitiveservices.speech as speechsdk
 import dotenv
 import redis.asyncio as redis
 
+from instructor.moves.moves import Move
 from instructor.speech.engine import Runtime, RuntimeSession, Engine
 from instructor.speech.prompt import Conversation
 
@@ -18,6 +19,8 @@ dotenv.load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY")
 AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION")
+
+# REDIS_HOST = '127.16.0.1'
 
 REDIS_HOST = 'localhost'
 REDIS_PORT = 6379
@@ -31,7 +34,7 @@ MOVE_EXECUTED_KEY = "robot::move_executed"
 
 class AppSessionObject(RuntimeSession):
     def __init__(self):
-        self.pending_moves = []
+        self.pending_moves = [] #array of type Move
         self.redis = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
 
 
@@ -271,15 +274,55 @@ class SpeechRecognizerApp(Runtime):
         await session.redis.delete(MOVE_LIST_KEY)
         await session.redis.set(EXECUTE_FLAG_KEY, "0")
         return session
+    
+    async def define_replay_move(self, session: AppSessionObject, move_id: str, start_time: float, stop_time: float):
+        self.log_to_console(f"Defining replay move {move_id} from {start_time:.1f} s to {stop_time:.1f} s")
+        move = Move(
+            move_type='replay',
+            replay_id=move_id,
+            move_edits=[], 
+            start_time=start_time + self.start_time,
+            stop_time=stop_time + self.start_time
+        )
+        await session.redis.rpush(DEFINE_MOVE_KEY, move)
+    
+    async def define_follow_move(self, session: AppSessionObject, hand: str, duration: float):
+        self.log_to_console(f"Defining follow move for {hand} hand for {duration:.1f} s")
+        move = Move(
+            move_type='follow',
+            hand=hand,
+            duration=duration
+        )
+        await session.redis.rpush(DEFINE_MOVE_KEY, move)
 
-    async def define_move(self, session: AppSessionObject, move_id: str, start_time: float, stop_time: float):
-        self.log_to_console(f"Defining move {move_id} from {start_time:.1f} s to {stop_time:.1f} s")
-        move_data = f"{move_id}:{start_time + self.start_time:.3f}:{stop_time + self.start_time:.3f}"
-        await session.redis.rpush(DEFINE_MOVE_KEY, move_data)
+    async def define_take_move(self, session: AppSessionObject, object_to_take: str):
+        self.log_to_console(f"Defining take move for {object_to_take}")
+        move = Move(
+            move_type='take',
+            object_to_take=object_to_take
+        )
+        await session.redis.rpush(DEFINE_MOVE_KEY, move)
 
-    async def do_move(self, session: AppSessionObject, move_id: str):
-        self.log_to_console(f"Queueing move {move_id}")
-        session.pending_moves.append(move_id)
+    async def define_free_space_move(self, session: AppSessionObject, magnitude: float, direction: str):
+        self.log_to_console(f"Defining free-space move with magnitude {magnitude} towards {direction}")
+        move = Move(
+            move_type='free-space',
+            magnitude=magnitude,
+            direction=direction
+        )
+        await session.redis.rpush(DEFINE_MOVE_KEY, move)
+
+    async def define_point_move(self, session: AppSessionObject, magnitude: float):
+        self.log_to_console(f"Defining pointing move with magnitude {magnitude}")
+        move = Move(
+            move_type='pointing',
+            magnitude=magnitude
+        )
+        await session.redis.rpush(DEFINE_MOVE_KEY, move)
+        
+    async def do_move(self, session: AppSessionObject, move: Move):
+        self.log_to_console(f"Queueing move: {move.type}")
+        session.pending_moves.append(move)
 
     async def speech(self, session: AppSessionObject, speech: str):
         self.log_to_console(f"Executing speech: {speech}")

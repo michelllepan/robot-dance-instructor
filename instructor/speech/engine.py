@@ -5,6 +5,8 @@ import xml.parsers.expat
 import xml.parsers.expat
 from typing import TypeVar
 
+from instructor.moves.moves import Move
+
 
 class RuntimeSession(abc.ABC):
     pass
@@ -19,7 +21,23 @@ class Runtime(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def define_move(self, session: RuntimeSessionObject, move_id: str, start_time: float, stop_time: float):
+    async def define_replay_move(self, session: RuntimeSessionObject, move_id: str, start_time: float, stop_time: float):
+        pass
+
+    @abc.abstractmethod
+    async def define_follow_move(self, session: RuntimeSessionObject, hand: str, duration: float):
+        pass
+
+    @abc.abstractmethod
+    async def define_take_move(self, session: RuntimeSessionObject, object_to_take: str):
+        pass
+
+    @abc.abstractmethod
+    async def define_free_space_move(self, session: RuntimeSessionObject, magnitude: float, direction: str):
+        pass
+
+    @abc.abstractmethod
+    async def define_point_move(self, session: RuntimeSessionObject, magnitude: float):
         pass
 
     @abc.abstractmethod
@@ -48,6 +66,8 @@ class Engine:
         self.move_stack = []
         self.execute_session = None
         self.tasks = []
+        self.current_move_type = None
+        self.current_move_params = {}
         self.current_move_start_time = None
         self.current_move_stop_time = None
 
@@ -65,39 +85,103 @@ class Engine:
 
     def start_element(self, name, attrs):
         self.current_element = name
+        
         if name == "move":
-            self.move_stack.append(attrs["id"])
+            # Extract move type and initialize move parameters
+            self.current_move_type = attrs.get("type")
+            self.current_move_params = {}
             self.current_move_start_time = None
             self.current_move_stop_time = None
-        elif name == "word":
+            move = None  # Initialize move variable to store the Move object
+
+            # Validate move type and initialize parameters accordingly
+            if self.current_move_type == "replay":
+                # Replay requires an ID and start/stop times
+                self.current_move_id = attrs.get("id")
+                if not self.current_move_id:
+                    raise ValueError("Replay move must have an 'id' attribute.")
+                move = Move(
+                    move_type="replay",
+                    replay_id=self.current_move_id,
+                    start_time=self.current_move_start_time,
+                    stop_time=self.current_move_stop_time
+                )
+            
+            elif self.current_move_type == "follow":
+                # Follow requires 'hand' and 'duration'
+                self.current_move_params['hand'] = attrs.get("hand")
+                self.current_move_params['duration'] = float(attrs.get("duration", 0))
+                if not self.current_move_params['hand']:
+                    raise ValueError("Follow move must have a 'hand' attribute.")
+                move = Move(
+                    move_type="follow",
+                    hand=self.current_move_params['hand'],
+                    duration=self.current_move_params['duration']
+                )
+
+            elif self.current_move_type == "take":
+                # Take requires 'object_to_take'
+                self.current_move_params['object_to_take'] = attrs.get("object")
+                if not self.current_move_params['object_to_take']:
+                    raise ValueError("Take move must have an 'object' attribute.")
+                move = Move(
+                    move_type="take",
+                    object_to_take=self.current_move_params['object_to_take']
+                )
+
+            elif self.current_move_type == "free-space":
+                # Free-space requires 'magnitude' and 'direction'
+                self.current_move_params['magnitude'] = float(attrs.get("magnitude", 0))
+                self.current_move_params['direction'] = attrs.get("direction")
+                if not self.current_move_params['direction']:
+                    raise ValueError("Free-space move must have a 'direction' attribute.")
+                move = Move(
+                    move_type="free-space",
+                    magnitude=self.current_move_params['magnitude'],
+                    direction=self.current_move_params['direction']
+                )
+
+            elif self.current_move_type == "pointing":
+                # Pointing requires 'magnitude'
+                self.current_move_params['magnitude'] = float(attrs.get("magnitude", 0))
+                move = Move(
+                    move_type="pointing",
+                    magnitude=self.current_move_params['magnitude']
+                )
+
+            else:
+                # Invalid move type
+                raise ValueError(f"Invalid move type: {self.current_move_type}. Expected one of ['replay', 'follow', 'take', 'free-space', 'pointing'].")
+
+            # Append the task to execute the move using the Move object
+            self.tasks.append(self.runtime.do_move(self.execute_session, move))
+        
+        elif name == "word" and self.current_move_type == "replay":
+            # Record the start and stop times for replay moves
             start_time = float(attrs["start"])
             stop_time = float(attrs["end"])
             if self.current_move_start_time is None or start_time < self.current_move_start_time:
                 self.current_move_start_time = start_time
             if self.current_move_stop_time is None or stop_time > self.current_move_stop_time:
                 self.current_move_stop_time = stop_time
+
         elif name == "response":
+        # Handle command-based responses
             if "command" in attrs:
                 command = attrs["command"]
                 move_commands = command.split(';')
                 for move_command in move_commands:
                     if move_command.strip():
-                        match = re.match(r'move\((\d+)\)', move_command.strip())
-                        if match:
-                            move_id = match.group(1)
-                            self.tasks.append(self.runtime.do_move(self.execute_session, move_id))
-            elif "speech" in attrs:
-                self.tasks.append(self.runtime.speech(self.execute_session, attrs["speech"]))
+                        # Use conversation parsing to convert to Move object
+                        move_obj = self.conversation.parse_command(move_command.strip())
+                        self.tasks.append(self.runtime.do_move(self.execute_session, move_obj))
+        elif "speech" in attrs:
+            self.tasks.append(self.runtime.speech(self.execute_session, attrs["speech"]))
 
     def end_element(self, name):
         if name == "move":
-            move_id = self.move_stack.pop()
-            self.tasks.append(self.runtime.define_move(
-                self.execute_session,
-                move_id,
-                self.current_move_start_time,
-                self.current_move_stop_time
-            ))
+            move = self.move_stack.pop()
+            self.tasks.append(move)
         self.current_element = None
         self.current_data = ""
 
