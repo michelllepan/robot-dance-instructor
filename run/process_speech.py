@@ -19,7 +19,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY")
 AZURE_SPEECH_REGION = os.getenv("AZURE_SPEECH_REGION")
 
-REDIS_HOST = 'localhost'
+REDIS_HOST = '172.16.0.1'
 REDIS_PORT = 6379
 REDIS_DB = 0
 
@@ -50,6 +50,7 @@ class SpeechRecognizerApp(Runtime):
 
         self.create_widgets()
         self.setup_speech_recognizer()
+        self.setup_speech_synthesizer()
         self.setup_grid()
 
         self.conversation = Conversation(api_key=OPENAI_API_KEY)
@@ -100,12 +101,26 @@ class SpeechRecognizerApp(Runtime):
 
         speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
         speech_config.request_word_level_timestamps()
-        audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
-        self.recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+        audio_input_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
+        self.recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_input_config)
 
         self.recognizer.recognizing.connect(self.recognizing_callback)
         self.recognizer.recognized.connect(self.recognized_callback)
         self.recognizer.session_stopped.connect(self.session_stopped_callback)
+
+    # ---- Speech Synthesis ----
+    def setup_speech_synthesizer(self):
+        speech_key = AZURE_SPEECH_KEY
+        service_region = AZURE_SPEECH_REGION
+
+        speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
+        speech_config.speech_synthesis_voice_name = 'en-US-AvaMultilingualNeural'
+
+        audio_output_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
+        self.synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_output_config)
+
+        self.synthesizer.synthesis_started.connect(self.synthesizing_callback)
+        self.synthesizer.synthesis_completed.connect(self.synthesized_callback)
 
     def toggle_recording(self):
         if self.recording:
@@ -145,6 +160,12 @@ class SpeechRecognizerApp(Runtime):
                         for word in words]
 
         self.update_history(best_result['Lexical'], word_timings, stable=True)
+
+    def synthesizing_callback(self, evt):
+        self.recognizer.stop_continuous_recognition()
+
+    def synthesized_callback(self, evt):
+        self.recognizer.start_continuous_recognition()
 
     def session_stopped_callback(self, evt):
         print("Session stopped")
@@ -274,7 +295,7 @@ class SpeechRecognizerApp(Runtime):
 
     async def define_move(self, session: AppSessionObject, move_id: str, start_time: float, stop_time: float):
         self.log_to_console(f"Defining move {move_id} from {start_time:.1f} s to {stop_time:.1f} s")
-        move_data = f"{move_id}:{start_time + self.start_time:.3f}:{stop_time + self.start_time:.3f}"
+        move_data = f"{move_id}:{start_time + self.start_time:.3f}:{stop_time + self.start_time + 5:.3f}"
         await session.redis.rpush(DEFINE_MOVE_KEY, move_data)
 
     async def do_move(self, session: AppSessionObject, move_id: str):
@@ -284,6 +305,7 @@ class SpeechRecognizerApp(Runtime):
     async def speech(self, session: AppSessionObject, speech: str):
         self.log_to_console(f"Executing speech: {speech}")
         # Implement text-to-speech functionality here if needed
+        self.synthesizer.speak_text_async(speech).get()
 
     async def end_session(self, session: AppSessionObject):
         self.log_to_console("Ending session")
