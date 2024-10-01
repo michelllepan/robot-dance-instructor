@@ -1,6 +1,8 @@
 pose_keypoints:
   - "left_hand"
+  - "left_elbow"
   - "right_hand"
+  - "right_elbow"
   - "center_hips"
   - "center_shoulders"
 
